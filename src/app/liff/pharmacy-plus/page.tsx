@@ -31,7 +31,6 @@ export default function PharmacyPlusPage() {
   const [reward, setReward] = useState<CampaignReward | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [claiming, setClaiming] = useState(false);
-  const [redeeming, setRedeeming] = useState(false);
   const [gateReturnStep, setGateReturnStep] = useState<Step>("register");
   const lastStepEventRef = useRef<string | null>(null);
   const source = useMemo(() => createSourceFromParams(params), [params]);
@@ -145,24 +144,9 @@ export default function PharmacyPlusPage() {
     }
   };
 
-  const handleRedeem = async () => {
+  const handleFinishWallet = async () => {
     if (!reward) return;
-    setRedeeming(true);
-    await logEvent("coupon_redeem_click", { reward: reward.title, couponCode: reward.couponCode, qrId: source.qrId ?? null }, "wallet");
-    try {
-      const res = await fetch("/api/pharmacy-plus/reward/redeem", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignKey: CAMPAIGN_KEY, sessionId, reward }),
-      });
-      const data = await res.json();
-      if (data?.reward) {
-        setReward(data.reward);
-        setStep("success");
-      }
-    } finally {
-      setRedeeming(false);
-    }
+    setStep("success");
   };
 
   return (
@@ -333,12 +317,14 @@ export default function PharmacyPlusPage() {
             <div className="mt-3 rounded-2xl bg-white/70 px-3 py-2 text-xs font-semibold text-slate-900">Code: {reward.couponCode}</div>
             {reward.expiresAt ? <div className="mt-2 text-xs text-slate-600">ใช้ได้ถึง {new Date(reward.expiresAt).toLocaleDateString("th-TH")}</div> : null}
           </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            แสดงโค้ดนี้ให้พนักงานที่หน้าร้านเพื่อยืนยันใช้สิทธิ์, ลูกค้าไม่ต้องกด redeem เองในหน้านี้
+          </div>
           <button
-            onClick={handleRedeem}
-            disabled={redeeming || reward.status === "redeemed"}
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+            onClick={handleFinishWallet}
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600"
           >
-            {redeeming ? "กำลังใช้สิทธิ์..." : reward.status === "redeemed" ? "ใช้สิทธิ์แล้ว" : "ใช้คูปองนี้"}
+            เข้าใจแล้ว
           </button>
         </section>
       )}
@@ -350,11 +336,11 @@ export default function PharmacyPlusPage() {
           </div>
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600">Success</div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">รับสิทธิ์สำเร็จแล้ว</h2>
-            <p className="mt-2 text-sm text-slate-500">บันทึกสิทธิ์ไว้แล้ว กลับมาลุ้นรอบใหม่ได้ใน campaign ถัดไป</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">บันทึกสิทธิ์เรียบร้อยแล้ว</h2>
+            <p className="mt-2 text-sm text-slate-500">เปิด wallet นี้ไว้หรือแคปหน้าจอไว้ แล้วแสดงโค้ดให้พนักงานที่หน้าร้านตอนใช้สิทธิ์</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">
-            {reward.title} {reward.status === "redeemed" ? "· ใช้สิทธิ์แล้ว" : ""}
+            {reward.title} · {reward.couponCode} {reward.status === "redeemed" ? "· ใช้สิทธิ์แล้ว" : ""}
           </div>
           <button onClick={() => setStep("landing")} className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-50">
             กลับหน้าแคมเปญ

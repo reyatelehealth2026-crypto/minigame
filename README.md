@@ -53,6 +53,7 @@ npm run build
 
 ## Admin UI
 - Reward pool editor: `/admin/pharmacy-plus/rewards`
+- Staff redeem page: `/admin/pharmacy-plus/redeem`
 - Campaign summary snapshot is shown on the reward admin page
 
 ## Validation / reporting
@@ -66,8 +67,9 @@ npm run build
 3. Play the game and receive a reward
 4. If not a friend yet, go through add-friend unlock
 5. Claim reward into wallet
-6. Redeem reward
-7. Open `/api/pharmacy-plus/report/summary?campaignKey=pharmacy-plus-shake-to-win` and confirm counts increased
+6. Copy or show coupon code from wallet
+7. Open `/admin/pharmacy-plus/redeem` and redeem by coupon code
+8. Open `/api/pharmacy-plus/report/summary?campaignKey=pharmacy-plus-shake-to-win` and confirm counts increased
 
 ## Notes
 This project now supports Supabase-backed campaign flow with graceful fallback when env/schema are missing. Current next steps after Sprint 1:

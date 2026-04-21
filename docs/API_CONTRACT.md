@@ -76,12 +76,21 @@ Behavior:
 - in fallback mode, can accept a client reward payload and return `storage: "noop"`
 
 ## POST `/api/pharmacy-plus/reward/redeem`
-Marks the session reward as redeemed.
+Marks the reward as redeemed.
 
 Behavior:
+- accepts either `sessionId` or `couponCode`
 - idempotent for retries
 - if reward is already `redeemed`, returns current reward state
 - in fallback mode, can accept a client reward payload and return `storage: "noop"`
+
+Request example for staff redeem:
+```json
+{
+  "campaignKey": "pharmacy-plus-shake-to-win",
+  "couponCode": "PP30-AB12CD"
+}
+```
 
 ## GET `/api/pharmacy-plus/report/summary`
 Returns top-level campaign counts and simple conversion rates.

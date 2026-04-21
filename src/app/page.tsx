@@ -16,6 +16,9 @@ export default function Home() {
           <Link href="/liff/pharmacy-plus" className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white transition hover:bg-emerald-600">
             เปิดหน้า campaign <ArrowRight size={16} />
           </Link>
+          <Link href="/admin/pharmacy-plus/redeem" className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-800 transition hover:bg-slate-50">
+            เปิดหน้าพนักงาน redeem
+          </Link>
           <a href="/api/pharmacy-plus/config" className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-800 transition hover:bg-slate-50">
             ดู mock config API
           </a>
@@ -26,7 +29,7 @@ export default function Home() {
         {[
           { icon: ShieldCheck, title: "Trust-first", text: "โทนสะอาด น่าเชื่อถือ เหมาะกับ health retail" },
           { icon: Sparkles, title: "LIFF-first", text: "entry flow สั้น, CTA ชัด, ใช้งานใน LINE ได้เลย" },
-          { icon: Ticket, title: "Reward-ready", text: "มีโครง add friend, reward reveal, coupon wallet" },
+          { icon: Ticket, title: "Reward-ready", text: "ลูกค้า claim คูปองได้เอง และพนักงาน redeem แยกหน้ากันชัดเจน" },
         ].map(({ icon: Icon, title, text }) => (
           <div key={title} className="rounded-[1.75rem] border border-slate-200/80 bg-white/80 p-5 shadow-[0_16px_60px_rgba(15,23,42,0.05)]">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">

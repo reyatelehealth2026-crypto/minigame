@@ -38,7 +38,8 @@ Run `supabase/migrations/001_campaign_core.sql` in Supabase SQL Editor before ex
 7. Redeem reward and confirm success screen
 8. Open `/api/pharmacy-plus/report/summary?campaignKey=pharmacy-plus-shake-to-win`
 9. Confirm `entries`, `events`, `rewardsIssued`, `rewardsClaimed`, `rewardsRedeemed` move as expected
-10. Open `/admin/pharmacy-plus/rewards` and confirm reward pool + summary snapshot render correctly
+10. Open `/admin/pharmacy-plus/redeem`, enter the coupon code from wallet, and confirm redeem works
+11. Open `/admin/pharmacy-plus/rewards` and confirm reward pool + summary snapshot render correctly
 
 ## Fallback behavior
 - If Supabase env or schema is missing, campaign APIs should keep working with `storage: "noop"`
