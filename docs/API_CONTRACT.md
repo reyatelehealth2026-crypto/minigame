@@ -3,6 +3,12 @@
 ## GET `/api/pharmacy-plus/config`
 Returns campaign UI metadata.
 
+## GET `/api/pharmacy-plus/admin/reward-pool`
+Returns the editable reward pool for the campaign.
+
+## POST `/api/pharmacy-plus/admin/reward-pool`
+Replaces the full reward pool for the campaign in one batch write.
+
 ## POST `/api/pharmacy-plus/events`
 Stores analytics events.
 

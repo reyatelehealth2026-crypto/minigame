@@ -45,11 +45,33 @@ create table if not exists campaign_events (
 create index if not exists campaign_events_name_idx on campaign_events(campaign_key, event_name, created_at desc);
 create index if not exists campaign_events_session_idx on campaign_events(session_id, created_at asc) where session_id is not null;
 
+create table if not exists campaign_reward_pool (
+  id                 bigserial primary key,
+  campaign_key       text not null,
+  reward_title       text not null,
+  reward_detail      text not null,
+  reward_tone        text not null check (reward_tone in ('peach','green','blue')),
+  coupon_code_prefix text not null,
+  weight             integer not null default 1,
+  stock_total        integer,
+  stock_issued       integer not null default 0,
+  is_active          boolean not null default true,
+  metadata           jsonb not null default '{}'::jsonb,
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);
+create index if not exists campaign_reward_pool_campaign_idx on campaign_reward_pool(campaign_key, is_active, id asc);
+
+drop trigger if exists campaign_reward_pool_touch on campaign_reward_pool;
+create trigger campaign_reward_pool_touch before update on campaign_reward_pool
+  for each row execute function touch_updated_at();
+
 create table if not exists campaign_rewards (
   id           bigserial primary key,
   campaign_key text not null,
   session_id   uuid not null,
   line_user_id text,
+  reward_pool_id bigint references campaign_reward_pool(id) on delete set null,
   reward_code  text not null,
   reward_title text not null,
   reward_detail text not null,
@@ -70,4 +92,5 @@ create index if not exists campaign_rewards_status_idx on campaign_rewards(campa
 
 alter table campaign_entries enable row level security;
 alter table campaign_events enable row level security;
+alter table campaign_reward_pool enable row level security;
 alter table campaign_rewards enable row level security;

@@ -28,7 +28,8 @@ Use LINE OA + LIFF to increase LINE OA friends through a mobile-first campaign f
 - `src/app/liff/pharmacy-plus/page.tsx` — LIFF campaign MVP screen flow
 - `src/components/LiffProvider.tsx` — LIFF context provider
 - `src/lib/pharmacy-plus.ts` — campaign constants, types, helpers
-- `src/app/api/pharmacy-plus/*` — mock config/events/entry endpoints
+- `src/app/api/pharmacy-plus/*` — campaign + reward + reporting endpoints
+- `src/app/admin/pharmacy-plus/rewards/page.tsx` — admin reward pool editor
 - `docs/` — project docs and setup notes
 
 ## Environment
@@ -50,9 +51,12 @@ npm run lint
 npm run build
 ```
 
+## Admin UI
+- Reward pool editor: `/admin/pharmacy-plus/rewards`
+
 ## Notes
-This scaffold currently uses mock campaign responses for rapid product iteration. Next steps:
-1. wire Supabase
-2. add reward draw/claim persistence
-3. add analytics dashboard
-4. add admin config for campaign copy and reward pool
+This project now supports Supabase-backed campaign flow with graceful fallback when env/schema are missing. Next steps:
+1. add analytics dashboard page
+2. add campaign copy/config editor
+3. add coupon redeem staff flow
+4. harden reward stock concurrency if traffic becomes high

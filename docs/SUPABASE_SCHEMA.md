@@ -10,6 +10,9 @@ Stores minimal registration data per campaign session.
 ### `campaign_events`
 Append-only event stream for funnel analytics.
 
+### `campaign_reward_pool`
+Stores admin-managed reward definitions, including weight, stock cap, and active state.
+
 ### `campaign_rewards`
 Stores the issued reward or coupon for each campaign session.
 
