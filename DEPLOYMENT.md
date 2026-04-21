@@ -2,13 +2,15 @@
 
 ## Current local deployment target
 - process manager: `systemd`
-- service name: `pharmacy-plus-liff-acquisition`
+- app service name: `pharmacy-plus-liff-acquisition`
 - app port: `3105`
 - start command: `scripts/start-prod.sh`
+- reverse proxy: `caddy` for `app.re-ya.net`
 
 ## Files
 - env template: `.env.production.local.example`
 - systemd unit source: `deploy/systemd/pharmacy-plus-liff-acquisition.service`
+- caddy config source: `deploy/caddy/Caddyfile`
 
 ## Install / update
 ```bash
@@ -32,6 +34,16 @@ The app can be served without env, but it is not truly launch-ready until these 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+
+## Domain plan
+Target public hostname:
+- `app.re-ya.net`
+
+Required DNS change:
+- create an `A` record for `app.re-ya.net`
+- point it to this server public IP: `43.98.204.176`
+
+After DNS points here and ports 80/443 are reachable, Caddy can issue TLS automatically.
 
 ## Important blocker for public customer use
 LIFF must be opened from a public HTTPS URL that is registered in the LINE Developers console.
