@@ -37,6 +37,9 @@ Create `.env.local` with:
 ```bash
 NEXT_PUBLIC_LIFF_ID=your_liff_id
 NEXT_PUBLIC_LINE_ADD_FRIEND_URL=https://line.me/R/ti/p/your_oa
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 ## Scripts

@@ -10,10 +10,20 @@ export type CampaignConfig = {
 };
 
 export type CampaignReward = {
+  rewardCode?: string;
   title: string;
   detail: string;
   couponCode: string;
   tone: "peach" | "green" | "blue";
+  status?: "issued" | "claimed" | "redeemed" | "expired" | "cancelled";
+  expiresAt?: string | null;
+};
+
+export type CampaignDrawResponse = {
+  ok: boolean;
+  reward: CampaignReward;
+  storage: "db" | "noop";
+  existing?: boolean;
 };
 
 export function pickReward(): CampaignReward {

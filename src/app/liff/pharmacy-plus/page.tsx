@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import confetti from "canvas-confetti";
 import { Gift, HeartHandshake, Smartphone, Ticket, CheckCircle2, ChevronRight } from "lucide-react";
 import { useLiff } from "@/components/LiffProvider";
-import { CAMPAIGN_KEY, getToneClasses, pickReward, type CampaignConfig, type CampaignReward } from "@/lib/pharmacy-plus";
+import { CAMPAIGN_KEY, getToneClasses, type CampaignConfig, type CampaignDrawResponse, type CampaignReward } from "@/lib/pharmacy-plus";
 
 const STEPS = ["landing", "gate", "register", "shake", "reward", "wallet", "success"] as const;
 type Step = (typeof STEPS)[number];
@@ -15,6 +15,7 @@ export default function PharmacyPlusPage() {
   const params = useSearchParams();
   const [config, setConfig] = useState<CampaignConfig | null>(null);
   const [step, setStep] = useState<Step>("landing");
+  const [sessionId] = useState(() => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [branch, setBranch] = useState("สาขาใกล้ฉัน");
@@ -46,6 +47,7 @@ export default function PharmacyPlusPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         campaignKey: CAMPAIGN_KEY,
+        sessionId,
         eventName,
         step,
         lineUserId: profile?.userId ?? null,
@@ -61,6 +63,7 @@ export default function PharmacyPlusPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         campaignKey: CAMPAIGN_KEY,
+        sessionId,
         lineUserId: profile?.userId ?? null,
         displayName: profile?.displayName ?? null,
         fullName: name,
@@ -77,11 +80,22 @@ export default function PharmacyPlusPage() {
   const handleDraw = async () => {
     setDrawing(true);
     await logEvent("shake_complete");
-    const nextReward = pickReward();
-    setReward(nextReward);
-    confetti({ particleCount: 90, spread: 70, origin: { y: 0.65 } });
-    setDrawing(false);
-    setStep("reward");
+    try {
+      const res = await fetch("/api/pharmacy-plus/reward/draw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignKey: CAMPAIGN_KEY, sessionId, lineUserId: profile?.userId ?? null }),
+      });
+      const data = (await res.json()) as CampaignDrawResponse;
+      if (data?.reward) {
+        setReward(data.reward);
+        await logEvent("reward_reveal", { reward: data.reward.title, storage: data.storage, existing: data.existing ?? false });
+        confetti({ particleCount: 90, spread: 70, origin: { y: 0.65 } });
+        setStep("reward");
+      }
+    } finally {
+      setDrawing(false);
+    }
   };
 
   return (
@@ -217,7 +231,20 @@ export default function PharmacyPlusPage() {
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10">
             <Ticket size={32} className="text-orange-300" />
           </div>
-          <button onClick={() => setStep("wallet")} className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600">
+          <button
+            onClick={async () => {
+              await logEvent("reward_claim_click", { reward: reward.title });
+              const res = await fetch("/api/pharmacy-plus/reward/claim", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ campaignKey: CAMPAIGN_KEY, sessionId }),
+              });
+              const data = await res.json();
+              if (data?.reward) setReward(data.reward);
+              setStep("wallet");
+            }}
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600"
+          >
             รับสิทธิ์เลย
           </button>
         </section>
@@ -230,10 +257,11 @@ export default function PharmacyPlusPage() {
             <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">สิทธิ์ของคุณพร้อมใช้แล้ว</h2>
           </div>
           <div className={`rounded-[1.75rem] border p-4 shadow-sm ${getToneClasses(reward.tone)}`}>
-            <div className="text-xs font-bold uppercase tracking-[0.16em]">Coupon Active</div>
+            <div className="text-xs font-bold uppercase tracking-[0.16em]">{reward.status === "claimed" ? "Coupon Claimed" : "Coupon Active"}</div>
             <div className="mt-2 text-xl font-black">{reward.title}</div>
             <div className="mt-1 text-sm opacity-90">{reward.detail}</div>
             <div className="mt-3 rounded-2xl bg-white/70 px-3 py-2 text-xs font-semibold text-slate-900">Code: {reward.couponCode}</div>
+            {reward.expiresAt ? <div className="mt-2 text-xs text-slate-600">ใช้ได้ถึง {new Date(reward.expiresAt).toLocaleDateString("th-TH")}</div> : null}
           </div>
           <button onClick={() => setStep("success")} className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600">
             ใช้คูปองนี้
