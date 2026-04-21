@@ -1,0 +1,18 @@
+[Unit]
+Description=Pharmacy Plus LIFF Acquisition (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/.openclaw/workspace/projects/pharmacy-plus-liff-acquisition
+Environment=NODE_ENV=production
+Environment=HOSTNAME=0.0.0.0
+Environment=PORT=3105
+EnvironmentFile=-/root/.openclaw/workspace/projects/pharmacy-plus-liff-acquisition/.env.production.local
+ExecStart=/root/.openclaw/workspace/projects/pharmacy-plus-liff-acquisition/scripts/start-prod.sh
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
