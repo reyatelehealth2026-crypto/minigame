@@ -1,9 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import confetti from "canvas-confetti";
-import { Gift, HeartHandshake, Smartphone, Ticket, CheckCircle2, ChevronRight } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronRight,
+  ClipboardList,
+  Gift,
+  HeartHandshake,
+  MapPin,
+  Phone,
+  Pill,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  Ticket,
+  UserRound,
+} from "lucide-react";
 import { useLiff } from "@/components/LiffProvider";
 import {
   CAMPAIGN_KEY,
@@ -18,6 +32,173 @@ import {
 
 const STEPS = ["landing", "gate", "register", "shake", "reward", "wallet", "success"] as const;
 type Step = (typeof STEPS)[number];
+
+type StepMeta = {
+  eyebrow: string;
+  title: string;
+  description: string;
+};
+
+const STEP_META: Record<Step, StepMeta> = {
+  landing: {
+    eyebrow: "Premium Campaign",
+    title: "Thai LINE OA Pharmacy",
+    description: "โทนสะอาด น่าเชื่อถือ และชวนกดต่อเหมือน campaign board ที่เอาไปขายหน้าร้านได้ทันที",
+  },
+  gate: {
+    eyebrow: "Adding LINE OA",
+    title: "ปลดล็อกรางวัลด้วยการเพิ่มเพื่อน",
+    description: "เล่นก่อนค่อยเพิ่มเพื่อนได้ แต่ตอนรับสิทธิ์ต้องเช็ก friendship ให้ชัด",
+  },
+  register: {
+    eyebrow: "Short Registration",
+    title: "ฟอร์มสั้น, จบไว, ไม่ชวนหนี",
+    description: "เก็บเท่าที่จำเป็น แล้วพาไปเล่นต่อทันที",
+  },
+  shake: {
+    eyebrow: "Tap / Select Capsule",
+    title: "แตะเลือก 1 ลูก",
+    description: "แทนคำว่า shake ด้วย interaction ที่เข้าใจเร็วกว่า และภาพจำดีกว่าใน UX จริง",
+  },
+  reward: {
+    eyebrow: "Reward Reveal",
+    title: "เปิดรางวัลแบบเห็นมูลค่าชัด",
+    description: "ต้องเป็น ticket card ที่เข้าใจใน 1 วิว่าตัวเองได้อะไร",
+  },
+  wallet: {
+    eyebrow: "Coupon Wallet",
+    title: "สิทธิ์พร้อมใช้ที่หน้าร้าน",
+    description: "ลูกค้าแค่ถือโค้ดไว้, พนักงานเป็นคน redeem",
+  },
+  success: {
+    eyebrow: "Success / Highlights",
+    title: "ปิด flow แบบโล่งและมั่นใจ",
+    description: "ย้ำอีกครั้งว่าต้องทำอะไรต่อ, ไม่ปล่อยให้ผู้ใช้เดาเอง",
+  },
+};
+
+const BOARD_STEPS = [
+  { title: "กรอกข้อมูล", detail: "ชื่อและเบอร์แบบสั้น ๆ", icon: ClipboardList },
+  { title: "เลือก 1 ลูก", detail: "interaction หลักของเกม", icon: Pill },
+  { title: "ปลดล็อกสิทธิ์", detail: "เพิ่มเพื่อนตอน claim", icon: HeartHandshake },
+  { title: "รับคูปอง", detail: "ถือ code ไปใช้ที่ร้าน", icon: Ticket },
+] as const;
+
+const CAPSULES = [
+  { id: "emerald", className: "from-emerald-500 via-emerald-300 to-amber-100" },
+  { id: "sky", className: "from-sky-500 via-cyan-300 to-amber-100" },
+  { id: "rose", className: "from-rose-400 via-pink-300 to-amber-100" },
+] as const;
+
+function PhoneFrame({ children, step, progress }: { children: ReactNode; step: Step; progress: number }) {
+  const meta = STEP_META[step];
+
+  return (
+    <section className="rounded-[2.4rem] border border-slate-200/70 bg-white p-2 shadow-[0_30px_90px_rgba(15,23,42,0.10)]">
+      <div className="overflow-hidden rounded-[2rem] bg-[linear-gradient(180deg,#f7faf8_0%,#ecf7f2_52%,#f9fcfb_100%)] ring-1 ring-black/5">
+        <div className="mx-auto mt-2 h-6 w-28 rounded-full bg-slate-950" />
+
+        <div className="border-b border-emerald-100/80 px-5 pb-4 pt-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-700">{meta.eyebrow}</div>
+              <h1 className="mt-1 text-[1.65rem] font-black leading-tight tracking-tight text-slate-950">{meta.title}</h1>
+              <p className="mt-1.5 text-sm leading-6 text-slate-600">{meta.description}</p>
+            </div>
+            <div className="rounded-2xl bg-white/80 px-3 py-2 text-right shadow-sm ring-1 ring-emerald-100">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">Step</div>
+              <div className="text-lg font-black text-slate-950">{progress}/{STEPS.length}</div>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-1.5">
+            {STEPS.map((label, index) => (
+              <div key={label} className={`h-1.5 flex-1 rounded-full ${index < progress ? "bg-emerald-500" : "bg-slate-200"}`} />
+            ))}
+          </div>
+        </div>
+
+        <div className="px-5 pb-6 pt-4">{children}</div>
+      </div>
+    </section>
+  );
+}
+
+function PrimaryButton({ children, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700 disabled:opacity-50 ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SecondaryButton({ children, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:opacity-50 ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DetailCard({ icon, title, detail }: { icon: ReactNode; title: string; detail: string }) {
+  return (
+    <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 shadow-sm ring-1 ring-emerald-100/60">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">{icon}</div>
+      <div className="mt-3 text-sm font-bold text-slate-950">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-slate-600">{detail}</div>
+    </div>
+  );
+}
+
+function CapsuleButton({ tone, disabled, onClick }: { tone: string; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="group flex flex-col items-center justify-center rounded-[2rem] border border-white/70 bg-white/70 p-3 shadow-sm transition hover:-translate-y-1 disabled:opacity-50"
+    >
+      <div className={`relative h-24 w-14 overflow-hidden rounded-full bg-gradient-to-b ${tone} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45),0_10px_25px_rgba(15,23,42,0.14)]`}>
+        <div className="absolute inset-x-2 top-1/2 h-[1px] bg-white/50" />
+        <div className="absolute inset-x-3 top-3 h-5 rounded-full bg-white/25 blur-[1px]" />
+        <div className="absolute inset-x-3 bottom-3 h-5 rounded-full bg-white/20 blur-[1px]" />
+      </div>
+      <div className="mt-2 text-xs font-semibold text-slate-700 group-hover:text-slate-950">แตะเลือก</div>
+    </button>
+  );
+}
+
+function RewardTicketCard({ reward, label }: { reward: CampaignReward; label: string }) {
+  return (
+    <div className={`rounded-[2rem] border p-4 shadow-[0_18px_40px_rgba(15,23,42,0.10)] ${getToneClasses(reward.tone)}`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.24em] opacity-80">{label}</div>
+      <div className="mt-2 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-2xl font-black leading-tight">{reward.title}</div>
+          <div className="mt-1 text-sm opacity-90">{reward.detail}</div>
+        </div>
+        <div className="rounded-2xl bg-white/70 p-3 text-slate-900 shadow-sm">
+          <Ticket size={22} />
+        </div>
+      </div>
+      {reward.couponCode ? <div className="mt-4 rounded-2xl bg-white/75 px-4 py-3 text-center text-sm font-black tracking-[0.18em] text-slate-900">{reward.couponCode}</div> : null}
+    </div>
+  );
+}
+
+function formatThaiDate(date?: string | null) {
+  if (!date) return null;
+  return new Date(date).toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
 
 export default function PharmacyPlusPage() {
   const { profile, friendship, refreshFriendship } = useLiff();
@@ -98,8 +279,8 @@ export default function PharmacyPlusPage() {
 
   const handleDraw = async () => {
     setDrawing(true);
-    await logEvent("game_start", { trigger: "tap_or_shake" }, "shake");
-    await logEvent("game_complete", { trigger: "tap_or_shake" }, "shake");
+    await logEvent("game_start", { trigger: "tap_capsule" }, "shake");
+    await logEvent("game_complete", { trigger: "tap_capsule" }, "shake");
     try {
       const res = await fetch("/api/pharmacy-plus/reward/draw", {
         method: "POST",
@@ -109,7 +290,11 @@ export default function PharmacyPlusPage() {
       const data = (await res.json()) as CampaignDrawResponse;
       if (data?.reward) {
         setReward(data.reward);
-        await logEvent("reward_reveal", { reward: data.reward.title, storage: data.storage, existing: data.existing ?? false, qrId: source.qrId ?? null }, "reward");
+        await logEvent(
+          "reward_reveal",
+          { reward: data.reward.title, storage: data.storage, existing: data.existing ?? false, qrId: source.qrId ?? null },
+          "reward",
+        );
         confetti({ particleCount: 90, spread: 70, origin: { y: 0.65 } });
         setStep("reward");
       }
@@ -150,203 +335,213 @@ export default function PharmacyPlusPage() {
   };
 
   return (
-    <div className="space-y-4 pb-20">
-      <section className="overflow-hidden rounded-[2rem] bg-slate-950 p-5 text-white shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
-        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300">Standalone campaign</div>
-        <h1 className="mt-2 text-3xl font-black tracking-tight">ร้านยาพรัส Shake to Win</h1>
-        <p className="mt-2 max-w-xs text-sm leading-6 text-white/70">เพิ่มเพื่อน LINE OA แล้วลุ้นคูปองหน้าร้านแบบเร็ว, ชัด, และเป็นมิตรกับการใช้งานบน LIFF</p>
-        <div className="mt-4 flex gap-1.5">
-          {STEPS.map((label, index) => (
-            <div key={label} className={`h-1.5 flex-1 rounded-full ${index < progress ? "bg-orange-300" : "bg-white/10"}`} />
-          ))}
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4 pb-20">
+      <section className="overflow-hidden rounded-[2rem] border border-emerald-100 bg-[linear-gradient(135deg,#125b43_0%,#0f6d52_56%,#dff4ea_56%,#f5fbf8_100%)] p-5 text-white shadow-[0_24px_80px_rgba(15,23,42,0.16)]">
+        <div className="inline-flex rounded-full bg-[#efd9ad] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5d4a20]">Premium</div>
+        <div className="mt-3 max-w-[15rem]">
+          <h2 className="text-[2rem] font-black leading-tight tracking-tight">Thai LINE OA Pharmacy</h2>
+          <p className="mt-1 text-sm text-white/80">Lucky Draw Campaign แบบ storyboard ชัดทั้ง UX และ UI</p>
         </div>
       </section>
 
-      {step === "landing" && config && (
-        <section className="space-y-4 rounded-[2rem] border border-emerald-100 bg-white p-5 shadow-[0_16px_60px_rgba(15,23,42,0.05)]">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600">Landing</div>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">เพิ่มเพื่อน, ลุ้นรางวัล, กลับมาซื้อซ้ำ</h2>
+      <section className="grid grid-cols-2 gap-3 rounded-[2rem] border border-slate-200/80 bg-white p-4 shadow-[0_16px_60px_rgba(15,23,42,0.05)]">
+        {BOARD_STEPS.map(({ title, detail, icon: Icon }, index) => (
+          <div key={title} className="rounded-[1.5rem] border border-slate-100 bg-slate-50/80 p-3">
+            <div className="flex items-center gap-2 text-emerald-700">
+              <Icon size={18} />
+              <span className="text-xs font-bold">{index + 1}. {title}</span>
             </div>
-            <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-orange-50 text-orange-500">
-              <Gift size={26} />
-            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-600">{detail}</p>
           </div>
+        ))}
+      </section>
 
-          <div className="grid gap-3">
-            {config.rewardTeasers.map((item) => (
-              <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">
-                {item}
+      <PhoneFrame step={step} progress={progress}>
+        {step === "landing" && config && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <DetailCard icon={<Gift size={18} />} title="รางวัลจับต้องได้" detail="โชว์ teaser แบบ coupon จริง ไม่ใช่คำโปรยลอย ๆ" />
+              <DetailCard icon={<ShieldCheck size={18} />} title="เภสัชดูน่าเชื่อถือ" detail="ภาพรวมต้องสะอาดแบบ health retail ไม่ใช่เกมแฟลชขายตรง" />
+            </div>
+
+            <div className="rounded-[1.75rem] border border-white/70 bg-white/95 p-4 shadow-sm ring-1 ring-emerald-100/60">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">Campaign Highlights</div>
+                  <h3 className="mt-1 text-lg font-black text-slate-950">เล่นก่อน, reveal ก่อน, เพิ่มเพื่อนตอน claim</h3>
+                </div>
+                <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
+                  <Sparkles size={18} />
+                </div>
               </div>
-            ))}
-          </div>
-
-          <div className="space-y-2">
-            {config.benefitBullets.map((item) => (
-              <div key={item} className="flex items-start gap-2 text-sm text-slate-600">
-                <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-500" />
-                <span>{item}</span>
+              <div className="mt-4 grid gap-2">
+                {config.rewardTeasers.map((item) => (
+                  <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-900">
+                    {item}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-
-          <button onClick={() => void setStep("register")} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600">
-            เริ่มเล่นเลย <ChevronRight size={16} />
-          </button>
-        </section>
-      )}
-
-      {step === "gate" && (
-        <section className="space-y-4 rounded-[2rem] border border-emerald-100 bg-white p-5 shadow-[0_16px_60px_rgba(15,23,42,0.05)]">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600">Add Friend Gate</div>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">{reward ? "มีรางวัลรออยู่แล้ว, เพิ่มเพื่อนเพื่อปลดล็อกสิทธิ์" : "เพิ่มเพื่อนตอนนี้ หรือไปเล่นก่อนก็ได้"}</h2>
+              <div className="mt-4 space-y-2">
+                {config.benefitBullets.map((item) => (
+                  <div key={item} className="flex items-start gap-2 text-sm text-slate-600">
+                    <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-500" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600">
-              <HeartHandshake size={26} />
+
+            <PrimaryButton onClick={() => void setStep("register")}>เริ่มเล่นเลย <ChevronRight size={16} /></PrimaryButton>
+          </div>
+        )}
+
+        {step === "gate" && (
+          <div className="space-y-4">
+            <div className="rounded-[1.75rem] border border-emerald-100 bg-white/95 p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-bold text-slate-950">สถานะ LINE OA</div>
+                  <div className="mt-1 text-sm text-slate-600">
+                    {isFriend ? "เพิ่มเพื่อนแล้ว พร้อมปลดล็อกสิทธิ์ต่อ" : "ยังไม่ได้เพิ่มเพื่อน, ต้องผ่านขั้นนี้ก่อนรับคูปอง"}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
+                  <HeartHandshake size={18} />
+                </div>
+              </div>
+              {reward ? (
+                <div className="mt-4 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+                  รางวัลของคุณถูกจองไว้แล้ว เหลือแค่เพิ่มเพื่อนเพื่อรับ code
+                </div>
+              ) : null}
             </div>
-          </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            สถานะเพื่อน LINE OA: <span className="font-semibold text-slate-950">{isFriend ? "เพิ่มเพื่อนแล้ว" : "ยังไม่ได้เพิ่มเพื่อน"}</span>
-            {reward ? <div className="mt-2 text-xs text-slate-500">รางวัลของคุณถูกจองไว้แล้ว, กลับมาปลดล็อกได้ทันทีหลังเพิ่มเพื่อน</div> : null}
-          </div>
+            {!isFriend && (
+              <a
+                href={config?.addFriendUrl ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => void logEvent("add_friend_click", { qrId: source.qrId ?? null }, "gate")}
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(5,150,105,0.24)] transition hover:bg-emerald-700"
+              >
+                เพิ่มเพื่อน LINE OA ตอนนี้
+              </a>
+            )}
 
-          {!isFriend && (
-            <a
-              href={config?.addFriendUrl ?? "#"}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => void logEvent("add_friend_click", { qrId: source.qrId ?? null }, "gate")}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600"
+            <SecondaryButton
+              onClick={async () => {
+                const nextFriendship = await refreshFriendship();
+                const unlocked = Boolean(nextFriendship?.friendFlag);
+                if (unlocked) {
+                  await logEvent("add_friend_success", { friendFlag: true, qrId: source.qrId ?? null }, "gate");
+                }
+                setStep(unlocked ? gateReturnStep : gateReturnStep === "reward" ? "reward" : "register");
+              }}
             >
-              เพิ่มเพื่อนตอนนี้
-            </a>
-          )}
-          <button
-            onClick={async () => {
-              const nextFriendship = await refreshFriendship();
-              const unlocked = Boolean(nextFriendship?.friendFlag);
-              if (unlocked) {
-                await logEvent("add_friend_success", { friendFlag: true, qrId: source.qrId ?? null }, "gate");
-              }
-              setStep(unlocked ? gateReturnStep : gateReturnStep === "reward" ? "reward" : "register");
-            }}
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-50"
-          >
-            {isFriend ? "ไปต่อ" : reward ? "ฉันเพิ่มเพื่อนแล้ว, ปลดล็อกรางวัล" : "ฉันเพิ่มเพื่อนแล้ว"}
-          </button>
-        </section>
-      )}
+              {isFriend ? "ไปต่อ" : reward ? "ฉันเพิ่มเพื่อนแล้ว ปลดล็อกสิทธิ์" : "ฉันเพิ่มเพื่อนแล้ว"}
+            </SecondaryButton>
+          </div>
+        )}
 
-      {step === "register" && (
-        <section className="space-y-4 rounded-[2rem] border border-emerald-100 bg-white p-5 shadow-[0_16px_60px_rgba(15,23,42,0.05)]">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600">Registration</div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">กรอกข้อมูลสั้นๆ แล้วเริ่มลุ้น</h2>
+        {step === "register" && (
+          <div className="space-y-4">
+            <div className="grid gap-3">
+              <label className="rounded-[1.5rem] border border-white/70 bg-white/90 px-4 py-3 shadow-sm ring-1 ring-emerald-100/60">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-emerald-700"><UserRound size={14} /> Full name</div>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="ชื่อของคุณ" className="mt-2 w-full bg-transparent text-base font-medium text-slate-950 outline-none placeholder:text-slate-400" />
+              </label>
+              <label className="rounded-[1.5rem] border border-white/70 bg-white/90 px-4 py-3 shadow-sm ring-1 ring-emerald-100/60">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-emerald-700"><Phone size={14} /> Phone</div>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="เบอร์โทร (optional)" className="mt-2 w-full bg-transparent text-base font-medium text-slate-950 outline-none placeholder:text-slate-400" />
+              </label>
+              <label className="rounded-[1.5rem] border border-white/70 bg-white/90 px-4 py-3 shadow-sm ring-1 ring-emerald-100/60">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-emerald-700"><MapPin size={14} /> Branch</div>
+                <select value={branch} onChange={(e) => setBranch(e.target.value)} className="mt-2 w-full bg-transparent text-base font-medium text-slate-950 outline-none">
+                  {(config?.branches ?? ["สาขาใกล้ฉัน"]).map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-xs leading-5 text-slate-500">
+              ฟอร์มนี้ตั้งใจให้สั้นแบบ reference, เก็บเฉพาะสิ่งที่ใช้ต่อใน campaign จริง
+            </div>
+            <PrimaryButton disabled={!name.trim()} onClick={handleRegister}>เริ่มลุ้นเลย</PrimaryButton>
           </div>
-          <div className="space-y-3">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="ชื่อของคุณ" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400" />
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="เบอร์โทร (optional)" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400" />
-            <select value={branch} onChange={(e) => setBranch(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400">
-              {(config?.branches ?? ["สาขาใกล้ฉัน"]).map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
-            </select>
-          </div>
-          <button disabled={!name.trim()} onClick={handleRegister} className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-50">
-            เริ่มลุ้นเลย
-          </button>
-        </section>
-      )}
+        )}
 
-      {step === "shake" && (
-        <section className="space-y-4 rounded-[2rem] border border-emerald-100 bg-white p-5 text-center shadow-[0_16px_60px_rgba(15,23,42,0.05)]">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600">Shake Interaction</div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">เขย่าเพื่อเปิดสิทธิ์ของคุณ</h2>
-            <p className="mt-2 text-sm text-slate-500">ถ้า motion sensor ใช้ไม่ได้, แตะปุ่มด้านล่างแทนได้</p>
-          </div>
-          <div className="mx-auto flex h-40 w-40 items-center justify-center rounded-[2.5rem] border border-slate-200 bg-slate-50 shadow-inner">
-            <Smartphone size={52} className="text-emerald-500" />
-          </div>
-          <div className="grid gap-3">
-            <button disabled={drawing} onClick={handleDraw} className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-50">
-              {drawing ? "กำลังสุ่มรางวัล..." : "เขย่าเลย"}
-            </button>
-            <button disabled={drawing} onClick={handleDraw} className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-50">
-              {drawing ? "กำลังสุ่มรางวัล..." : "แตะเพื่อเล่น"}
-            </button>
-          </div>
-        </section>
-      )}
+        {step === "shake" && (
+          <div className="space-y-4 text-center">
+            <div className="rounded-[1.75rem] border border-white/70 bg-white/95 p-4 shadow-sm ring-1 ring-emerald-100/60">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600">
+                <Smartphone size={24} />
+              </div>
+              <div className="mt-3 text-lg font-black text-slate-950">เลือก 1 ลูกเพื่อเปิดรางวัล</div>
+              <div className="mt-1 text-sm text-slate-500">ถ้าอยากเก็บคำว่า shake ไว้ ใช้เป็น microcopy ได้ แต่ interaction หลักให้ผู้ใช้แตะเลย</div>
 
-      {step === "reward" && reward && (
-        <section className="space-y-4 rounded-[2rem] bg-slate-950 p-5 text-center text-white shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300">Reward Reveal</div>
-            <h2 className="mt-2 text-3xl font-black tracking-tight">{reward.title}</h2>
-            <p className="mt-2 text-sm text-white/70">{reward.detail}</p>
+              <div className="mt-5 grid grid-cols-3 gap-3">
+                {CAPSULES.map((capsule) => (
+                  <CapsuleButton key={capsule.id} tone={capsule.className} disabled={drawing} onClick={handleDraw} />
+                ))}
+              </div>
+            </div>
+            <SecondaryButton disabled={drawing} onClick={handleDraw}>{drawing ? "กำลังสุ่มรางวัล..." : "สุ่มอัตโนมัติแทน"}</SecondaryButton>
           </div>
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10">
-            <Ticket size={32} className="text-orange-300" />
-          </div>
-          {!isFriend ? <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">คุณเล่นและได้รางวัลแล้ว, เหลือแค่เพิ่มเพื่อนเพื่อปลดล็อกสิทธิ์รับคูปอง</div> : null}
-          <button
-            onClick={handleClaim}
-            disabled={claiming}
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
-          >
-            {claiming ? "กำลังบันทึกสิทธิ์..." : !isFriend ? "เพิ่มเพื่อนเพื่อปลดล็อกรางวัล" : "รับสิทธิ์เลย"}
-          </button>
-        </section>
-      )}
+        )}
 
-      {step === "wallet" && reward && (
-        <section className="space-y-4 rounded-[2rem] border border-emerald-100 bg-white p-5 shadow-[0_16px_60px_rgba(15,23,42,0.05)]">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600">Coupon Wallet</div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">สิทธิ์ของคุณพร้อมใช้แล้ว</h2>
+        {step === "reward" && reward && (
+          <div className="space-y-4">
+            <RewardTicketCard reward={reward} label="Main Reward" />
+            {!isFriend ? (
+              <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+                คุณได้รางวัลแล้ว, เหลือแค่เพิ่มเพื่อนก่อนรับ coupon เข้าวอลเล็ต
+              </div>
+            ) : null}
+            <PrimaryButton onClick={handleClaim} disabled={claiming}>
+              {claiming ? "กำลังบันทึกสิทธิ์..." : !isFriend ? "เพิ่มเพื่อนเพื่อปลดล็อกรางวัล" : "รับสิทธิ์เลย"}
+            </PrimaryButton>
           </div>
-          <div className={`rounded-[1.75rem] border p-4 shadow-sm ${getToneClasses(reward.tone)}`}>
-            <div className="text-xs font-bold uppercase tracking-[0.16em]">{reward.status === "redeemed" ? "Coupon Redeemed" : reward.status === "claimed" ? "Coupon Claimed" : "Coupon Active"}</div>
-            <div className="mt-2 text-xl font-black">{reward.title}</div>
-            <div className="mt-1 text-sm opacity-90">{reward.detail}</div>
-            <div className="mt-3 rounded-2xl bg-white/70 px-3 py-2 text-xs font-semibold text-slate-900">Code: {reward.couponCode}</div>
-            {reward.expiresAt ? <div className="mt-2 text-xs text-slate-600">ใช้ได้ถึง {new Date(reward.expiresAt).toLocaleDateString("th-TH")}</div> : null}
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            แสดงโค้ดนี้ให้พนักงานที่หน้าร้านเพื่อยืนยันใช้สิทธิ์, ลูกค้าไม่ต้องกด redeem เองในหน้านี้
-          </div>
-          <button
-            onClick={handleFinishWallet}
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600"
-          >
-            เข้าใจแล้ว
-          </button>
-        </section>
-      )}
+        )}
 
-      {step === "success" && reward && (
-        <section className="space-y-4 rounded-[2rem] border border-emerald-100 bg-white p-5 text-center shadow-[0_16px_60px_rgba(15,23,42,0.05)]">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600">
-            <CheckCircle2 size={30} />
+        {step === "wallet" && reward && (
+          <div className="space-y-4">
+            <RewardTicketCard reward={reward} label={reward.status === "redeemed" ? "Coupon Redeemed" : "Coupon Claimed"} />
+            <div className="rounded-[1.5rem] border border-slate-200 bg-white/90 p-4 text-sm text-slate-600 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="rounded-2xl bg-emerald-50 p-2 text-emerald-600">
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <div className="font-bold text-slate-950">วิธีใช้สิทธิ์</div>
+                  <div className="mt-1">แสดง code นี้ให้พนักงานที่หน้าร้าน, ลูกค้าไม่ต้องกด redeem เอง</div>
+                  {reward.expiresAt ? <div className="mt-2 text-xs text-slate-500">ใช้ได้ถึง {formatThaiDate(reward.expiresAt)}</div> : null}
+                </div>
+              </div>
+            </div>
+            <PrimaryButton onClick={handleFinishWallet}>เข้าใจแล้ว</PrimaryButton>
           </div>
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600">Success</div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">บันทึกสิทธิ์เรียบร้อยแล้ว</h2>
-            <p className="mt-2 text-sm text-slate-500">เปิด wallet นี้ไว้หรือแคปหน้าจอไว้ แล้วแสดงโค้ดให้พนักงานที่หน้าร้านตอนใช้สิทธิ์</p>
+        )}
+
+        {step === "success" && reward && (
+          <div className="space-y-4 text-center">
+            <div className="rounded-[1.75rem] border border-white/70 bg-white/95 p-5 shadow-sm ring-1 ring-emerald-100/60">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600">
+                <CheckCircle2 size={30} />
+              </div>
+              <div className="mt-4 text-2xl font-black tracking-tight text-slate-950">บันทึกสิทธิ์เรียบร้อยแล้ว</div>
+              <p className="mt-2 text-sm leading-6 text-slate-500">เก็บหน้านี้ไว้หรือแคปจอ แล้วแสดงโค้ดกับพนักงานเมื่อมาซื้อหน้าร้าน</p>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">
+                {reward.title} · {reward.couponCode}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-left">
+              <DetailCard icon={<HeartHandshake size={18} />} title="OA ถูกเพิ่มแล้ว" detail="ได้ทั้ง acquisition และ reward redemption ใน flow เดียว" />
+              <DetailCard icon={<Gift size={18} />} title="coupon พร้อมใช้" detail="พา user ไปจบที่หน้าร้านได้จริง ไม่ใช่แค่ animation สวย" />
+            </div>
+            <SecondaryButton onClick={() => setStep("landing")}>กลับหน้าแคมเปญ</SecondaryButton>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">
-            {reward.title} · {reward.couponCode} {reward.status === "redeemed" ? "· ใช้สิทธิ์แล้ว" : ""}
-          </div>
-          <button onClick={() => setStep("landing")} className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-50">
-            กลับหน้าแคมเปญ
-          </button>
-        </section>
-      )}
+        )}
+      </PhoneFrame>
     </div>
   );
 }
