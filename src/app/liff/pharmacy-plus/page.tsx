@@ -1,11 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import confetti from "canvas-confetti";
 import { Gift, HeartHandshake, Smartphone, Ticket, CheckCircle2, ChevronRight } from "lucide-react";
 import { useLiff } from "@/components/LiffProvider";
-import { CAMPAIGN_KEY, getToneClasses, type CampaignConfig, type CampaignDrawResponse, type CampaignReward } from "@/lib/pharmacy-plus";
+import {
+  CAMPAIGN_KEY,
+  createSourceFromParams,
+  getToneClasses,
+  postCampaignEvent,
+  type CampaignConfig,
+  type CampaignDrawResponse,
+  type CampaignEventName,
+  type CampaignReward,
+} from "@/lib/pharmacy-plus";
 
 const STEPS = ["landing", "gate", "register", "shake", "reward", "wallet", "success"] as const;
 type Step = (typeof STEPS)[number];
@@ -22,15 +31,8 @@ export default function PharmacyPlusPage() {
   const [reward, setReward] = useState<CampaignReward | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
-  const source = useMemo(
-    () => ({
-      source: params.get("utm_source") ?? params.get("source"),
-      medium: params.get("utm_medium") ?? params.get("medium"),
-      campaign: params.get("utm_campaign") ?? params.get("campaign"),
-      branch: params.get("branch"),
-    }),
-    [params],
-  );
+  const lastStepEventRef = useRef<string | null>(null);
+  const source = useMemo(() => createSourceFromParams(params), [params]);
 
   useEffect(() => {
     (async () => {
@@ -42,21 +44,36 @@ export default function PharmacyPlusPage() {
   const isFriend = Boolean(friendship?.friendFlag);
   const progress = STEPS.indexOf(step) + 1;
 
-  const logEvent = async (eventName: string, payload?: Record<string, unknown>) => {
-    await fetch("/api/pharmacy-plus/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+  const logEvent = useCallback(
+    async (eventName: CampaignEventName, payload?: Record<string, unknown>, eventStep = step) => {
+      await postCampaignEvent({
         campaignKey: CAMPAIGN_KEY,
         sessionId,
         eventName,
-        step,
+        step: eventStep,
         lineUserId: profile?.userId ?? null,
         source,
         payload,
-      }),
-    });
-  };
+      });
+    },
+    [profile?.userId, sessionId, source, step],
+  );
+
+  useEffect(() => {
+    const stepEventMap: Partial<Record<Step, CampaignEventName>> = {
+      landing: "campaign_view",
+      register: "registration_start",
+      wallet: "wallet_view",
+      success: "success_view",
+    };
+
+    const eventName = stepEventMap[step];
+    const dedupeKey = `${step}:${eventName ?? ""}`;
+    if (!eventName || lastStepEventRef.current === dedupeKey) return;
+
+    lastStepEventRef.current = dedupeKey;
+    void logEvent(eventName, reward ? { reward: reward.title } : undefined);
+  }, [logEvent, reward, step]);
 
   const handleRegister = async () => {
     await fetch("/api/pharmacy-plus/entry", {
@@ -74,13 +91,14 @@ export default function PharmacyPlusPage() {
         source,
       }),
     });
-    await logEvent("registration_submit", { branch });
+    await logEvent("registration_submit", { branch, qrId: source.qrId ?? null });
     setStep("shake");
   };
 
   const handleDraw = async () => {
     setDrawing(true);
-    await logEvent("shake_complete");
+    await logEvent("game_start", { trigger: "tap_or_shake" }, "shake");
+    await logEvent("game_complete", { trigger: "tap_or_shake" }, "shake");
     try {
       const res = await fetch("/api/pharmacy-plus/reward/draw", {
         method: "POST",
@@ -90,7 +108,7 @@ export default function PharmacyPlusPage() {
       const data = (await res.json()) as CampaignDrawResponse;
       if (data?.reward) {
         setReward(data.reward);
-        await logEvent("reward_reveal", { reward: data.reward.title, storage: data.storage, existing: data.existing ?? false });
+        await logEvent("reward_reveal", { reward: data.reward.title, storage: data.storage, existing: data.existing ?? false, qrId: source.qrId ?? null }, "reward");
         confetti({ particleCount: 90, spread: 70, origin: { y: 0.65 } });
         setStep("reward");
       }
@@ -141,7 +159,7 @@ export default function PharmacyPlusPage() {
             ))}
           </div>
 
-          <button onClick={() => setStep("gate")} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600">
+          <button onClick={() => void setStep("gate")} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600">
             เพิ่มเพื่อนและเริ่มเล่น <ChevronRight size={16} />
           </button>
         </section>
@@ -164,13 +182,20 @@ export default function PharmacyPlusPage() {
           </div>
 
           {!isFriend && (
-            <a href={config?.addFriendUrl ?? "#"} target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600">
+            <a
+              href={config?.addFriendUrl ?? "#"}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => void logEvent("add_friend_click", { qrId: source.qrId ?? null }, "gate")}
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600"
+            >
               เพิ่มเพื่อนตอนนี้
             </a>
           )}
           <button
             onClick={async () => {
               await refreshFriendship();
+              await logEvent("add_friend_success", { friendFlag: true, qrId: source.qrId ?? null }, "gate");
               setStep("register");
             }}
             className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-50"
@@ -234,7 +259,7 @@ export default function PharmacyPlusPage() {
           </div>
           <button
             onClick={async () => {
-              await logEvent("reward_claim_click", { reward: reward.title });
+              await logEvent("reward_claim_click", { reward: reward.title, qrId: source.qrId ?? null }, "reward");
               const res = await fetch("/api/pharmacy-plus/reward/claim", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -267,7 +292,7 @@ export default function PharmacyPlusPage() {
           <button
             onClick={async () => {
               setRedeeming(true);
-              await logEvent("coupon_redeem_click", { reward: reward.title, couponCode: reward.couponCode });
+              await logEvent("coupon_redeem_click", { reward: reward.title, couponCode: reward.couponCode, qrId: source.qrId ?? null }, "wallet");
               try {
                 const res = await fetch("/api/pharmacy-plus/reward/redeem", {
                   method: "POST",

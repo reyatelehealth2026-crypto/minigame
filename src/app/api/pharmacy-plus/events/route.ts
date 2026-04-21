@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { CAMPAIGN_EVENT_NAMES, type CampaignEventPayload } from "@/lib/pharmacy-plus";
 import { hasSupabaseAdmin, supabaseAdmin } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const body = (await req.json()) as CampaignEventPayload;
 
-  if (!body?.campaignKey || !body?.eventName || !body?.step) {
+  if (!body?.campaignKey || !body?.sessionId || !body?.eventName || !body?.step) {
     return NextResponse.json({ error: "campaignKey, eventName, and step required" }, { status: 400 });
+  }
+
+  if (!CAMPAIGN_EVENT_NAMES.includes(body.eventName)) {
+    return NextResponse.json({ error: `invalid eventName: ${body.eventName}` }, { status: 400 });
   }
 
   if (!hasSupabaseAdmin()) {

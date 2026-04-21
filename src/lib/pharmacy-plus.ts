@@ -1,6 +1,30 @@
 export const CAMPAIGN_KEY = "pharmacy-plus-shake-to-win";
 
+export const CAMPAIGN_EVENT_NAMES = [
+  "campaign_view",
+  "add_friend_click",
+  "add_friend_success",
+  "registration_start",
+  "registration_submit",
+  "game_start",
+  "game_complete",
+  "reward_reveal",
+  "reward_claim_click",
+  "wallet_view",
+  "success_view",
+  "coupon_redeem_click",
+] as const;
+
+export type CampaignEventName = (typeof CAMPAIGN_EVENT_NAMES)[number];
 export type RewardTone = "peach" | "green" | "blue";
+
+export type CampaignSource = {
+  source?: string | null;
+  medium?: string | null;
+  campaign?: string | null;
+  branch?: string | null;
+  qrId?: string | null;
+};
 
 export type CampaignConfig = {
   campaignKey: string;
@@ -31,6 +55,28 @@ export type RewardPoolItemInput = {
   stockTotal?: number | null | "";
   stockIssued?: number;
   isActive?: boolean;
+};
+
+export type CampaignEventPayload = {
+  campaignKey: string;
+  sessionId: string;
+  eventName: CampaignEventName;
+  step: string;
+  lineUserId?: string | null;
+  source?: CampaignSource;
+  payload?: Record<string, unknown>;
+};
+
+export type CampaignEntryPayload = {
+  campaignKey: string;
+  sessionId: string;
+  lineUserId?: string | null;
+  displayName?: string | null;
+  fullName: string;
+  phone?: string | null;
+  branch?: string | null;
+  isLineFriend?: boolean;
+  source?: CampaignSource;
 };
 
 export type CampaignDrawResponse = {
@@ -64,6 +110,28 @@ export function pickReward(pool: RewardPoolItemInput[] = defaultRewardPool): Rew
 export function buildCouponCode(prefix: string) {
   const random = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `${prefix}-${random}`;
+}
+
+export function createSourceFromParams(params: URLSearchParams): CampaignSource {
+  return {
+    source: params.get("utm_source") ?? params.get("source"),
+    medium: params.get("utm_medium") ?? params.get("medium"),
+    campaign: params.get("utm_campaign") ?? params.get("campaign"),
+    branch: params.get("branch"),
+    qrId: params.get("qr_id"),
+  };
+}
+
+export async function postCampaignEvent(body: CampaignEventPayload) {
+  try {
+    await fetch("/api/pharmacy-plus/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    // no-op for MVP telemetry
+  }
 }
 
 export function getToneClasses(tone: CampaignReward["tone"]) {
