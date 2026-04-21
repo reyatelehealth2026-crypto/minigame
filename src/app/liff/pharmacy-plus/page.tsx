@@ -30,7 +30,9 @@ export default function PharmacyPlusPage() {
   const [branch, setBranch] = useState("สาขาใกล้ฉัน");
   const [reward, setReward] = useState<CampaignReward | null>(null);
   const [drawing, setDrawing] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
+  const [gateReturnStep, setGateReturnStep] = useState<Step>("register");
   const lastStepEventRef = useRef<string | null>(null);
   const source = useMemo(() => createSourceFromParams(params), [params]);
 
@@ -117,6 +119,52 @@ export default function PharmacyPlusPage() {
     }
   };
 
+  const handleClaim = async () => {
+    if (!reward) return;
+    if (!isFriend) {
+      setGateReturnStep("reward");
+      setStep("gate");
+      return;
+    }
+
+    setClaiming(true);
+    try {
+      await logEvent("reward_claim_click", { reward: reward.title, qrId: source.qrId ?? null }, "reward");
+      const res = await fetch("/api/pharmacy-plus/reward/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignKey: CAMPAIGN_KEY, sessionId, reward }),
+      });
+      const data = await res.json();
+      if (data?.reward) {
+        setReward(data.reward);
+        setStep("wallet");
+      }
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const handleRedeem = async () => {
+    if (!reward) return;
+    setRedeeming(true);
+    await logEvent("coupon_redeem_click", { reward: reward.title, couponCode: reward.couponCode, qrId: source.qrId ?? null }, "wallet");
+    try {
+      const res = await fetch("/api/pharmacy-plus/reward/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignKey: CAMPAIGN_KEY, sessionId, reward }),
+      });
+      const data = await res.json();
+      if (data?.reward) {
+        setReward(data.reward);
+        setStep("success");
+      }
+    } finally {
+      setRedeeming(false);
+    }
+  };
+
   return (
     <div className="space-y-4 pb-20">
       <section className="overflow-hidden rounded-[2rem] bg-slate-950 p-5 text-white shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
@@ -159,8 +207,8 @@ export default function PharmacyPlusPage() {
             ))}
           </div>
 
-          <button onClick={() => void setStep("gate")} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600">
-            เพิ่มเพื่อนและเริ่มเล่น <ChevronRight size={16} />
+          <button onClick={() => void setStep("register")} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600">
+            เริ่มเล่นเลย <ChevronRight size={16} />
           </button>
         </section>
       )}
@@ -170,7 +218,7 @@ export default function PharmacyPlusPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600">Add Friend Gate</div>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">เพิ่มเพื่อนก่อน, ปลดล็อกสิทธิ์เล่นทันที</h2>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">{reward ? "มีรางวัลรออยู่แล้ว, เพิ่มเพื่อนเพื่อปลดล็อกสิทธิ์" : "เพิ่มเพื่อนตอนนี้ หรือไปเล่นก่อนก็ได้"}</h2>
             </div>
             <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600">
               <HeartHandshake size={26} />
@@ -179,6 +227,7 @@ export default function PharmacyPlusPage() {
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             สถานะเพื่อน LINE OA: <span className="font-semibold text-slate-950">{isFriend ? "เพิ่มเพื่อนแล้ว" : "ยังไม่ได้เพิ่มเพื่อน"}</span>
+            {reward ? <div className="mt-2 text-xs text-slate-500">รางวัลของคุณถูกจองไว้แล้ว, กลับมาปลดล็อกได้ทันทีหลังเพิ่มเพื่อน</div> : null}
           </div>
 
           {!isFriend && (
@@ -194,13 +243,16 @@ export default function PharmacyPlusPage() {
           )}
           <button
             onClick={async () => {
-              await refreshFriendship();
-              await logEvent("add_friend_success", { friendFlag: true, qrId: source.qrId ?? null }, "gate");
-              setStep("register");
+              const nextFriendship = await refreshFriendship();
+              const unlocked = Boolean(nextFriendship?.friendFlag);
+              if (unlocked) {
+                await logEvent("add_friend_success", { friendFlag: true, qrId: source.qrId ?? null }, "gate");
+              }
+              setStep(unlocked ? gateReturnStep : gateReturnStep === "reward" ? "reward" : "register");
             }}
             className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-slate-50"
           >
-            {isFriend ? "ไปต่อ" : "ฉันเพิ่มเพื่อนแล้ว"}
+            {isFriend ? "ไปต่อ" : reward ? "ฉันเพิ่มเพื่อนแล้ว, ปลดล็อกรางวัล" : "ฉันเพิ่มเพื่อนแล้ว"}
           </button>
         </section>
       )}
@@ -257,21 +309,13 @@ export default function PharmacyPlusPage() {
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10">
             <Ticket size={32} className="text-orange-300" />
           </div>
+          {!isFriend ? <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">คุณเล่นและได้รางวัลแล้ว, เหลือแค่เพิ่มเพื่อนเพื่อปลดล็อกสิทธิ์รับคูปอง</div> : null}
           <button
-            onClick={async () => {
-              await logEvent("reward_claim_click", { reward: reward.title, qrId: source.qrId ?? null }, "reward");
-              const res = await fetch("/api/pharmacy-plus/reward/claim", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ campaignKey: CAMPAIGN_KEY, sessionId }),
-              });
-              const data = await res.json();
-              if (data?.reward) setReward(data.reward);
-              setStep("wallet");
-            }}
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600"
+            onClick={handleClaim}
+            disabled={claiming}
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
           >
-            รับสิทธิ์เลย
+            {claiming ? "กำลังบันทึกสิทธิ์..." : !isFriend ? "เพิ่มเพื่อนเพื่อปลดล็อกรางวัล" : "รับสิทธิ์เลย"}
           </button>
         </section>
       )}
@@ -283,33 +327,18 @@ export default function PharmacyPlusPage() {
             <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">สิทธิ์ของคุณพร้อมใช้แล้ว</h2>
           </div>
           <div className={`rounded-[1.75rem] border p-4 shadow-sm ${getToneClasses(reward.tone)}`}>
-            <div className="text-xs font-bold uppercase tracking-[0.16em]">{reward.status === "claimed" ? "Coupon Claimed" : "Coupon Active"}</div>
+            <div className="text-xs font-bold uppercase tracking-[0.16em]">{reward.status === "redeemed" ? "Coupon Redeemed" : reward.status === "claimed" ? "Coupon Claimed" : "Coupon Active"}</div>
             <div className="mt-2 text-xl font-black">{reward.title}</div>
             <div className="mt-1 text-sm opacity-90">{reward.detail}</div>
             <div className="mt-3 rounded-2xl bg-white/70 px-3 py-2 text-xs font-semibold text-slate-900">Code: {reward.couponCode}</div>
             {reward.expiresAt ? <div className="mt-2 text-xs text-slate-600">ใช้ได้ถึง {new Date(reward.expiresAt).toLocaleDateString("th-TH")}</div> : null}
           </div>
           <button
-            onClick={async () => {
-              setRedeeming(true);
-              await logEvent("coupon_redeem_click", { reward: reward.title, couponCode: reward.couponCode, qrId: source.qrId ?? null }, "wallet");
-              try {
-                const res = await fetch("/api/pharmacy-plus/reward/redeem", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ campaignKey: CAMPAIGN_KEY, sessionId }),
-                });
-                const data = await res.json();
-                if (data?.reward) setReward(data.reward);
-                setStep("success");
-              } finally {
-                setRedeeming(false);
-              }
-            }}
-            disabled={redeeming}
+            onClick={handleRedeem}
+            disabled={redeeming || reward.status === "redeemed"}
             className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
           >
-            {redeeming ? "กำลังใช้สิทธิ์..." : "ใช้คูปองนี้"}
+            {redeeming ? "กำลังใช้สิทธิ์..." : reward.status === "redeemed" ? "ใช้สิทธิ์แล้ว" : "ใช้คูปองนี้"}
           </button>
         </section>
       )}

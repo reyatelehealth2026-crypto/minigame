@@ -45,6 +45,28 @@ function mapPoolRow(row: DbPoolRow): RewardPoolItemInput {
   };
 }
 
+type RewardRow = {
+  reward_code: string;
+  reward_title: string;
+  reward_detail: string;
+  reward_tone: CampaignReward["tone"];
+  coupon_code: string;
+  status: NonNullable<CampaignReward["status"]>;
+  expires_at: string | null;
+};
+
+function mapRewardRow(row: RewardRow): CampaignReward {
+  return {
+    rewardCode: row.reward_code,
+    title: row.reward_title,
+    detail: row.reward_detail,
+    tone: row.reward_tone,
+    couponCode: row.coupon_code,
+    status: row.status,
+    expiresAt: row.expires_at,
+  };
+}
+
 export async function POST(req: NextRequest) {
   const { campaignKey, sessionId, lineUserId } = await req.json();
 
@@ -68,20 +90,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (existing) {
-      return NextResponse.json({
-        ok: true,
-        storage: "db",
-        existing: true,
-        reward: {
-          rewardCode: existing.reward_code,
-          title: existing.reward_title,
-          detail: existing.reward_detail,
-          tone: existing.reward_tone,
-          couponCode: existing.coupon_code,
-          status: existing.status,
-          expiresAt: existing.expires_at,
-        },
-      });
+      return NextResponse.json({ ok: true, storage: "db", existing: true, reward: mapRewardRow(existing as RewardRow) });
     }
 
     const { data: poolRows } = await db
@@ -110,6 +119,17 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
+      const { data: conflicted } = await db
+        .from("campaign_rewards")
+        .select("reward_code, reward_title, reward_detail, reward_tone, coupon_code, status, expires_at")
+        .eq("campaign_key", campaignKey)
+        .eq("session_id", sessionId)
+        .maybeSingle();
+
+      if (conflicted) {
+        return NextResponse.json({ ok: true, storage: "db", existing: true, reward: mapRewardRow(conflicted as RewardRow) });
+      }
+
       return NextResponse.json({ ok: true, storage: "noop", reward });
     }
 

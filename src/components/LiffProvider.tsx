@@ -27,7 +27,7 @@ type LiffCtx = {
   error: string | null;
   login: () => void;
   logout: () => void;
-  refreshFriendship: () => Promise<void>;
+  refreshFriendship: () => Promise<Friendship>;
 };
 
 const Ctx = createContext<LiffCtx>({
@@ -38,7 +38,7 @@ const Ctx = createContext<LiffCtx>({
   error: null,
   login: () => {},
   logout: () => {},
-  refreshFriendship: async () => {},
+  refreshFriendship: async () => null,
 });
 
 export function LiffProvider({ children }: { children: ReactNode }) {
@@ -97,9 +97,12 @@ export function LiffProvider({ children }: { children: ReactNode }) {
         refreshFriendship: async () => {
           try {
             const f = await liff?.getFriendship?.();
-            setFriendship(f ?? null);
+            const nextFriendship = f ?? null;
+            setFriendship(nextFriendship);
+            return nextFriendship;
           } catch {
             setFriendship(null);
+            return null;
           }
         },
       }}
