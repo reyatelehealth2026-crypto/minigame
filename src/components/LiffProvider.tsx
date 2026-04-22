@@ -13,6 +13,7 @@ type Friendship = { friendFlag: boolean } | null;
 type LiffInstance = {
   init: (options: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
+  getAccessToken?: () => string | null;
   getProfile: () => Promise<NonNullable<Profile>>;
   getFriendship?: () => Promise<NonNullable<Friendship>>;
   login: () => void;
@@ -65,11 +66,13 @@ export function LiffProvider({ children }: { children: ReactNode }) {
         if (isLoggedIn) {
           const p = await L.getProfile();
           setProfile(p);
-          try {
-            const f = await L.getFriendship?.();
-            setFriendship(f ?? null);
-          } catch {
-            setFriendship(null);
+          if (L.getAccessToken?.()) {
+            try {
+              const f = await L.getFriendship?.();
+              setFriendship(f ?? null);
+            } catch {
+              setFriendship(null);
+            }
           }
         }
       } catch (e: unknown) {
@@ -95,14 +98,16 @@ export function LiffProvider({ children }: { children: ReactNode }) {
         login: () => liff?.login(),
         logout: () => liff?.logout(),
         refreshFriendship: async () => {
+          if (!liff || !liff.isLoggedIn() || !liff.getAccessToken?.()) {
+            return friendship;
+          }
           try {
-            const f = await liff?.getFriendship?.();
+            const f = await liff.getFriendship?.();
             const nextFriendship = f ?? null;
             setFriendship(nextFriendship);
             return nextFriendship;
           } catch {
-            setFriendship(null);
-            return null;
+            return friendship;
           }
         },
       }}

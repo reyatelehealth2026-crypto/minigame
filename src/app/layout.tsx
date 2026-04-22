@@ -1,6 +1,21 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Cormorant_Garamond, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
+
+const displaySerif = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-pp-display",
+  display: "swap",
+});
+
+const bodyThai = Noto_Sans_Thai({
+  subsets: ["thai", "latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-pp-body",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Pharmacy Plus LIFF Acquisition",
@@ -31,8 +46,8 @@ const SUPPRESS_EXT_NOISE = `
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="th" className="h-full">
-      <body className="min-h-full bg-[radial-gradient(circle_at_top_left,_rgba(34,197,94,0.10),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.08),_transparent_30%),linear-gradient(180deg,_#f8fffb_0%,_#ffffff_100%)] text-slate-900 antialiased">
+    <html lang="th" className={`h-full ${displaySerif.variable} ${bodyThai.variable}`}>
+      <body className="min-h-full bg-[radial-gradient(circle_at_top_left,_rgba(34,197,94,0.10),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.08),_transparent_30%),linear-gradient(180deg,_#f8fffb_0%,_#ffffff_100%)] font-[var(--font-pp-body)] text-slate-900 antialiased">
         <Script id="suppress-ext-noise" strategy="beforeInteractive">{SUPPRESS_EXT_NOISE}</Script>
         {children}
       </body>
