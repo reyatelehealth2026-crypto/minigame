@@ -141,3 +141,26 @@ body {
 .pp-orbit { animation: pp-orbit 22s linear infinite; }
 .pp-flash { animation: pp-flash 1.1s ease-out forwards; }
 .pp-neon-ring { animation: pp-neon-ring 2s ease-in-out infinite; }
+
+.pp-reward-scroll {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.pp-reward-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  max-width: min(22rem, 88vw);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-landing-skeleton {
+    animation: none !important;
+    opacity: 0.55;
+  }
+}

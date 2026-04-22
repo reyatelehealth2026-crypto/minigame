@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(grep -n \"ClipboardList\\\\|setName\\\\|name\\\\\\\\.trim\\\\|phone\\\\|branch\\\\|register\\\\|MapPin\\\\|UserRound\\\\|Phone\\\\b\\\\|Store\" src/app/liff/pharmacy-plus/page.tsx)",
+      "Bash(./node_modules/.bin/tsc --noEmit --pretty false)",
+      "Bash(grep -n \"\\\\\"Phone\\\\\"\\\\\\\\|^\\\\\\\\s*Phone,\" src/app/liff/pharmacy-plus/page.tsx)"
+    ]
+  }
+}
