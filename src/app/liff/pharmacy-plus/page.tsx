@@ -1,26 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import confetti from "canvas-confetti";
 import {
   CheckCircle2,
-  ClipboardList,
   Gift,
   HeartHandshake,
   LoaderCircle,
-  MapPin,
-  Phone,
   Pill,
   Sparkles,
   Smartphone,
-  Store,
   Ticket,
   Trophy,
-  UserRound,
   ShieldCheck,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useLiff } from "@/components/LiffProvider";
+import {
+  getSfxMutedSnapshot,
+  playReveal,
+  playShakeRumble,
+  playSoftConfirm,
+  playTap,
+  playWin,
+  setSfxMuted,
+  subscribeSfxMute,
+  unlockSfxFromUserGesture,
+} from "@/lib/pharmacy-plus-audio";
+import { safeVibrate } from "@/lib/pharmacy-plus-feedback";
 import {
   CAMPAIGN_KEY,
   createSourceFromParams,
@@ -32,11 +41,10 @@ import {
   type CampaignReward,
 } from "@/lib/pharmacy-plus";
 
-const STEPS = ["landing", "register", "shake", "pick", "reward", "gate", "wallet", "success"] as const;
+const STEPS = ["landing", "shake", "pick", "reward", "gate", "wallet", "success"] as const;
 type Step = (typeof STEPS)[number];
 
 const BOARD_STEPS = [
-  { key: "register", title: "กรอกข้อมูล", description: "กรอกครั้งเดียวก่อนเล่น", icon: ClipboardList },
   { key: "shake", title: "เขย่าโทรศัพท์", description: "ผสมลูกบอลให้เข้ากัน", icon: Smartphone },
   { key: "pick", title: "แตะเลือก 1 ลูก", description: "ลุ้นจากลูกที่ชอบ", icon: Pill },
   { key: "reward", title: "รับรางวัล", description: "ปลดล็อกผ่าน LINE", icon: Gift },
@@ -102,23 +110,18 @@ const STEP_COPY: Record<Step, { eyebrow: string; title: string; description: str
     title: "เขย่าบอล ลุ้นโชค",
     description: "เขย่ามือถือ 1 ครั้ง แล้วเลือก 1 ลูกเพื่อลุ้นรับของรางวัลจากร้านยา",
   },
-  register: {
-    eyebrow: "Step 1",
-    title: "กรอกข้อมูล",
-    description: "ฟอร์มสั้นๆ ก่อนเริ่มเกม",
-  },
   shake: {
-    eyebrow: "Step 2",
+    eyebrow: "Step 1",
     title: "เขย่าโทรศัพท์",
     description: "กดปุ่มเขย่า แล้วดูลูกบอลผสมกันในเครื่อง",
   },
   pick: {
-    eyebrow: "Step 3",
+    eyebrow: "Step 2",
     title: "แตะเลือก 1 ลูก",
     description: "เลือกลูกบอลที่ถูกใจ แล้วเปิดรางวัลทันที",
   },
   reward: {
-    eyebrow: "Step 4",
+    eyebrow: "Step 3",
     title: "เปิดรางวัล",
     description: "รางวัลของคุณคือ...",
   },
@@ -207,7 +210,7 @@ function StoryboardHeader({ current }: { current: Step }) {
           {activeIndex >= 0 ? `${activeIndex + 1}/${BOARD_STEPS.length}` : `0/${BOARD_STEPS.length}`}
         </div>
       </div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {BOARD_STEPS.map(({ key, title, icon: Icon }, index) => {
           const isActive = key === current;
           const isDone = activeIndex > index;
@@ -365,17 +368,18 @@ export default function PharmacyPlusPage() {
   const [config, setConfig] = useState<CampaignConfig | null>(null);
   const [step, setStep] = useState<Step>("landing");
   const [sessionId] = useState(() => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`);
-  const [name, setName] = useState("");
   const [reward, setReward] = useState<CampaignReward | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [shaking, setShaking] = useState(false);
   const [shakeCompleted, setShakeCompleted] = useState(false);
   const [selectedBall, setSelectedBall] = useState<number | null>(null);
-  const [gateReturnStep, setGateReturnStep] = useState<Step>("register");
+  const [gateReturnStep, setGateReturnStep] = useState<Step>("reward");
   const [gateChecking, setGateChecking] = useState(false);
   const [gateAttempts, setGateAttempts] = useState(0);
   const [gateMessage, setGateMessage] = useState<string | null>(null);
+  const sfxMuted = useSyncExternalStore(subscribeSfxMute, getSfxMutedSnapshot, () => false);
   const source = useMemo(() => createSourceFromParams(params), [params]);
   const lastStepEventRef = useRef<string | null>(null);
 
@@ -385,12 +389,6 @@ export default function PharmacyPlusPage() {
       setConfig(await res.json());
     })();
   }, []);
-
-  useEffect(() => {
-    if (!name.trim() && profile?.displayName) {
-      setName(profile.displayName);
-    }
-  }, [name, profile?.displayName]);
 
   const isFriend = Boolean(friendship?.friendFlag);
 
@@ -417,7 +415,6 @@ export default function PharmacyPlusPage() {
   useEffect(() => {
     const stepEventMap: Partial<Record<Step, CampaignEventName>> = {
       landing: "campaign_view",
-      register: "registration_start",
       wallet: "wallet_view",
       success: "success_view",
     };
@@ -428,46 +425,66 @@ export default function PharmacyPlusPage() {
     void logEvent(eventName, reward ? { reward: reward.title } : undefined);
   }, [logEvent, reward, step]);
 
-  const handleRegister = async () => {
-    await fetch("/api/pharmacy-plus/entry", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        campaignKey: CAMPAIGN_KEY,
-        sessionId,
-        lineUserId: profile?.userId ?? null,
-        displayName: profile?.displayName ?? null,
-        fullName: name,
-        phone,
-        branch,
-        isLineFriend: isFriend,
-        source,
-      }),
-    });
-    await logEvent("registration_submit", { branch, qrId: source.qrId ?? null }, "register");
-    setShaking(false);
-    setShakeCompleted(false);
-    setSelectedBall(null);
-    setStep("shake");
+  const toggleSfx = useCallback(() => {
+    setSfxMuted(!getSfxMutedSnapshot());
+  }, []);
+
+  const handleStart = async () => {
+    if (registering) return;
+    const fullName = profile?.displayName?.trim();
+    if (!fullName) return;
+    void unlockSfxFromUserGesture();
+    setRegistering(true);
+    try {
+      await logEvent("registration_start", undefined, "landing");
+      await fetch("/api/pharmacy-plus/entry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaignKey: CAMPAIGN_KEY,
+          sessionId,
+          lineUserId: profile?.userId ?? null,
+          displayName: profile?.displayName ?? null,
+          fullName,
+          isLineFriend: isFriend,
+          source,
+        }),
+      });
+      await logEvent("registration_submit", { qrId: source.qrId ?? null }, "landing");
+      setShaking(false);
+      setShakeCompleted(false);
+      setSelectedBall(null);
+      setStep("shake");
+    } finally {
+      setRegistering(false);
+    }
   };
 
   const handleShake = async () => {
     if (shaking) return;
+    void unlockSfxFromUserGesture();
+    void playShakeRumble(1600);
+    safeVibrate(12);
     setShaking(true);
     setShakeCompleted(false);
     await logEvent("game_start", { trigger: "shake_tap" }, "shake");
     window.setTimeout(() => {
       setShaking(false);
       setShakeCompleted(true);
+      safeVibrate([28, 40, 32]);
     }, 1600);
   };
 
   const goToPick = () => {
+    void playTap();
     setStep("pick");
   };
 
   const handlePickBall = async (index: number) => {
     if (drawing) return;
+    void unlockSfxFromUserGesture();
+    void playTap();
+    safeVibrate(14);
     setSelectedBall(index);
     setDrawing(true);
     await logEvent("game_complete", { trigger: "tap_ball", ballIndex: index + 1 }, "pick");
@@ -486,6 +503,9 @@ export default function PharmacyPlusPage() {
           { reward: data.reward.title, storage: data.storage, existing: data.existing ?? false, qrId: source.qrId ?? null, ballIndex: index + 1 },
           "reward",
         );
+        void playReveal();
+        window.setTimeout(() => void playWin(), 200);
+        safeVibrate([18, 35, 22, 40, 55]);
         confetti({ particleCount: 90, spread: 75, origin: { y: 0.6 } });
         setTimeout(() => setStep("reward"), 400);
       }
@@ -514,6 +534,8 @@ export default function PharmacyPlusPage() {
       const data = await res.json();
       if (data?.reward) {
         setReward(data.reward);
+        void playSoftConfirm();
+        safeVibrate([20, 30, 20]);
         setStep("wallet");
       }
     } finally {
@@ -552,14 +574,19 @@ export default function PharmacyPlusPage() {
     setStep("success");
   };
 
-  const boardStep: Step = step === "landing" ? "register" : step === "gate" || step === "wallet" || step === "success" ? "reward" : step;
+  const boardStep: Step = step === "landing" ? "shake" : step === "gate" || step === "wallet" || step === "success" ? "reward" : step;
   const isGameMode = step === "shake" || step === "pick" || step === "reward";
 
   return (
     <>
     <div className="mx-auto flex w-full max-w-md flex-col gap-4 pb-24">
       {step === "landing" ? (
-        <LandingHero onStart={() => setStep("register")} rewardTeasers={config?.rewardTeasers ?? []} />
+        <LandingHero
+          onStart={handleStart}
+          starting={registering || !ready}
+          displayName={profile?.displayName ?? null}
+          rewardTeasers={config?.rewardTeasers ?? []}
+        />
       ) : isGameMode ? null : (
         <>
           <StoryboardHeader current={boardStep} />
@@ -577,37 +604,6 @@ export default function PharmacyPlusPage() {
               </div>
             ) : (
               <>
-                {step === "register" && (
-                  <div className="space-y-4">
-                    <div className="rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-                      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#ebfff0] text-[#20ab48] shadow-sm">
-                        <Store size={34} />
-                      </div>
-                      <div className="mt-3 text-center text-lg font-black text-slate-950">กรอกข้อมูล เพื่อเข้าร่วมกิจกรรม</div>
-                      <div className="mt-4 space-y-3">
-                        <label className="block rounded-[1.3rem] border border-slate-200 bg-slate-50 px-4 py-3">
-                          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"><UserRound size={14} /> ชื่อร้าน / ชื่อผู้เล่น</div>
-                          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="กรุณากรอกชื่อร้านยา / ชื่อเล่น" className="mt-2 w-full bg-transparent text-base font-medium text-slate-950 outline-none placeholder:text-slate-400" />
-                        </label>
-                        <label className="block rounded-[1.3rem] border border-slate-200 bg-slate-50 px-4 py-3">
-                          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"><Phone size={14} /> Phone</div>
-                          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="เบอร์โทร (optional)" className="mt-2 w-full bg-transparent text-base font-medium text-slate-950 outline-none placeholder:text-slate-400" />
-                        </label>
-                        <label className="block rounded-[1.3rem] border border-slate-200 bg-slate-50 px-4 py-3">
-                          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"><MapPin size={14} /> Branch</div>
-                          <select value={branch} onChange={(e) => setBranch(e.target.value)} className="mt-2 w-full bg-transparent text-base font-medium text-slate-950 outline-none">
-                            {(config?.branches ?? ["สาขาใกล้ฉัน"]).map((item) => (
-                              <option key={item} value={item}>{item}</option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                      <PrimaryButton className="mt-4" disabled={!name.trim()} onClick={handleRegister}>ถัดไป · เขย่าโทรศัพท์</PrimaryButton>
-                      <div className="mt-3 text-xs leading-5 text-slate-500">* ข้อมูลของคุณจะถูกเก็บเป็นความลับ</div>
-                    </div>
-                  </div>
-                )}
-
                 {step === "gate" && (
                   <div className="space-y-4 text-center">
                     <div className="rounded-[1.75rem] border border-white/80 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
@@ -700,6 +696,8 @@ export default function PharmacyPlusPage() {
         reward={reward}
         isFriend={isFriend}
         claiming={claiming}
+        sfxMuted={sfxMuted}
+        onToggleSfx={toggleSfx}
         onShake={handleShake}
         onGoToPick={goToPick}
         onPickBall={(i) => void handlePickBall(i)}
@@ -719,6 +717,8 @@ function GameOverlay({
   reward,
   isFriend,
   claiming,
+  sfxMuted,
+  onToggleSfx,
   onShake,
   onGoToPick,
   onPickBall,
@@ -732,6 +732,8 @@ function GameOverlay({
   reward: CampaignReward | null;
   isFriend: boolean;
   claiming: boolean;
+  sfxMuted: boolean;
+  onToggleSfx: () => void;
   onShake: () => void;
   onGoToPick: () => void;
   onPickBall: (index: number) => void;
@@ -761,19 +763,29 @@ function GameOverlay({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  i < stageIndex
-                    ? "w-5 bg-emerald-400/70"
-                    : i === stageIndex
-                      ? "w-7 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]"
-                      : "w-3 bg-white/20"
-                }`}
-              />
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onToggleSfx}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white ring-1 ring-white/20 backdrop-blur-md transition hover:bg-white/15"
+              aria-label={sfxMuted ? "เปิดเสียง" : "ปิดเสียง"}
+            >
+              {sfxMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
+            <div className="flex items-center gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i < stageIndex
+                      ? "w-5 bg-emerald-400/70"
+                      : i === stageIndex
+                        ? "w-7 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]"
+                        : "w-3 bg-white/20"
+                  }`}
+                />
+              ))}
+            </div>
           </div>
         </header>
 
@@ -927,7 +939,9 @@ function PickArena({
                 selectedBall === null && !drawing
                   ? "pp-float"
                   : selectedBall === index
-                    ? "pp-pop"
+                    ? drawing
+                      ? "pp-pop-await scale-110"
+                      : "pp-pop"
                     : "opacity-40"
               }
             />
@@ -1006,14 +1020,28 @@ function RewardArena({
   );
 }
 
-function LandingHero({ onStart, rewardTeasers }: { onStart: () => void; rewardTeasers: string[] }) {
+function LandingHero({
+  onStart,
+  starting,
+  displayName,
+  rewardTeasers,
+}: {
+  onStart: () => void;
+  starting: boolean;
+  displayName: string | null;
+  rewardTeasers: string[];
+}) {
   const [previewShaking, setPreviewShaking] = useState(false);
 
   const triggerPreview = () => {
     if (previewShaking) return;
+    void unlockSfxFromUserGesture();
+    void playTap();
     setPreviewShaking(true);
     window.setTimeout(() => setPreviewShaking(false), 1400);
   };
+
+  const disabled = starting || !displayName;
 
   return (
     <div className="space-y-5">
@@ -1025,6 +1053,11 @@ function LandingHero({ onStart, rewardTeasers }: { onStart: () => void; rewardTe
           เขย่าบอล<span className="text-[#ffe1ec]">ลุ้นโชค</span>
         </h1>
         <p className="mt-2 text-sm leading-6 text-white/90">เขย่า 1 ครั้ง แตะเลือก 1 ลูก แล้วรับรางวัลเลย</p>
+        {displayName ? (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur">
+            เล่นในชื่อ <span className="font-black">{displayName}</span>
+          </div>
+        ) : null}
 
         <div
           role="button"
@@ -1066,10 +1099,22 @@ function LandingHero({ onStart, rewardTeasers }: { onStart: () => void; rewardTe
         <button
           type="button"
           onClick={onStart}
-          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-white px-5 py-4 text-lg font-black text-[#0f7a43] shadow-[0_18px_30px_rgba(15,23,42,0.18)] transition hover:bg-[#f4fff8]"
+          disabled={disabled}
+          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-white px-5 py-4 text-lg font-black text-[#0f7a43] shadow-[0_18px_30px_rgba(15,23,42,0.18)] transition hover:bg-[#f4fff8] disabled:opacity-60"
         >
-          <Sparkles size={20} /> เริ่มเล่นเลย
+          {starting ? (
+            <>
+              <LoaderCircle className="animate-spin" size={20} /> กำลังเริ่ม...
+            </>
+          ) : (
+            <>
+              <Sparkles size={20} /> เริ่มเล่นเลย
+            </>
+          )}
         </button>
+        {!displayName ? (
+          <div className="mt-2 text-center text-[11px] text-white/80">กำลังเชื่อมต่อ LINE เพื่อดึงชื่อของคุณ...</div>
+        ) : null}
       </section>
 
       <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">

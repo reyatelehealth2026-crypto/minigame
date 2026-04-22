@@ -84,6 +84,12 @@ body {
 .pp-bob { animation: pp-bob 2.6s ease-in-out infinite; }
 .pp-pop { animation: pp-reveal-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
 .pp-pulse { animation: pp-glow-pulse 1.6s ease-in-out infinite; }
+/* One-shot pop then looping glow (pick step while API runs) */
+.pp-pop-await {
+  animation:
+    pp-reveal-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both,
+    pp-glow-pulse 1.4s ease-in-out 0.35s infinite;
+}
 .pp-spark { animation: pp-spark 1.1s ease-out forwards; }
 
 @keyframes pp-twinkle {
