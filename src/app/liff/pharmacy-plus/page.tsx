@@ -35,10 +35,10 @@ const STEPS = ["landing", "register", "shake", "pick", "reward", "gate", "wallet
 type Step = (typeof STEPS)[number];
 
 const BOARD_STEPS = [
-  { key: "register", title: "กรอกข้อมูล", icon: ClipboardList },
-  { key: "shake", title: "เขย่าโทรศัพท์", icon: Smartphone },
-  { key: "pick", title: "แตะเลือก 1 ลูก", icon: Pill },
-  { key: "reward", title: "เปิดรางวัล", icon: Gift },
+  { key: "register", title: "กรอกข้อมูล", description: "กรอกครั้งเดียวก่อนเล่น", icon: ClipboardList },
+  { key: "shake", title: "เขย่าโทรศัพท์", description: "ผสมลูกบอลให้เข้ากัน", icon: Smartphone },
+  { key: "pick", title: "แตะเลือก 1 ลูก", description: "ลุ้นจากลูกที่ชอบ", icon: Pill },
+  { key: "reward", title: "รับรางวัล", description: "ปลดล็อกผ่าน LINE", icon: Gift },
 ] as const;
 
 const BOARD_KEYS = BOARD_STEPS.map((item) => item.key) as readonly Step[];
@@ -374,6 +374,9 @@ export default function PharmacyPlusPage() {
   const [shakeCompleted, setShakeCompleted] = useState(false);
   const [selectedBall, setSelectedBall] = useState<number | null>(null);
   const [gateReturnStep, setGateReturnStep] = useState<Step>("register");
+  const [gateChecking, setGateChecking] = useState(false);
+  const [gateAttempts, setGateAttempts] = useState(0);
+  const [gateMessage, setGateMessage] = useState<string | null>(null);
   const source = useMemo(() => createSourceFromParams(params), [params]);
   const lastStepEventRef = useRef<string | null>(null);
 
@@ -406,6 +409,11 @@ export default function PharmacyPlusPage() {
     },
     [profile?.userId, sessionId, source, step],
   );
+
+  useEffect(() => {
+    if (step !== "gate" || !ready) return;
+    void refreshFriendship();
+  }, [step, ready, refreshFriendship]);
 
   useEffect(() => {
     const stepEventMap: Partial<Record<Step, CampaignEventName>> = {
@@ -487,10 +495,12 @@ export default function PharmacyPlusPage() {
     }
   };
 
-  const handleClaim = async () => {
+  const handleClaim = async ({ friendOverride = false }: { friendOverride?: boolean } = {}) => {
     if (!reward) return;
-    if (!isFriend) {
+    if (!isFriend && !friendOverride) {
       setGateReturnStep("reward");
+      setGateAttempts(0);
+      setGateMessage(null);
       setStep("gate");
       return;
     }
@@ -510,6 +520,32 @@ export default function PharmacyPlusPage() {
     } finally {
       setClaiming(false);
     }
+  };
+
+  const handleGateCheck = async () => {
+    if (gateChecking) return;
+    setGateChecking(true);
+    setGateMessage(null);
+    try {
+      const nextFriendship = await refreshFriendship();
+      const unlocked = Boolean(nextFriendship?.friendFlag);
+      setGateAttempts((count) => count + 1);
+      if (unlocked) {
+        await logEvent("add_friend_success", { friendFlag: true, qrId: source.qrId ?? null }, "gate");
+        setGateMessage(null);
+        await handleClaim({ friendOverride: true });
+        return;
+      }
+      setGateMessage("ยังไม่พบสถานะเพิ่มเพื่อน ลองกดเพิ่มเพื่อนแล้วกลับมาตรวจสอบอีกครั้ง");
+    } finally {
+      setGateChecking(false);
+    }
+  };
+
+  const handleGateBypass = async () => {
+    if (claiming) return;
+    await logEvent("add_friend_success", { friendFlag: false, bypass: true, qrId: source.qrId ?? null }, "gate");
+    await handleClaim({ friendOverride: true });
   };
 
   const handleFinishWallet = () => {
@@ -631,7 +667,7 @@ export default function PharmacyPlusPage() {
                       <div className="-mt-2 text-3xl font-black tracking-tight text-slate-950">{reward.title}</div>
                       <div className="mt-2 text-base font-bold text-slate-700">{reward.detail}</div>
                     </div>
-                    <PrimaryButton onClick={handleClaim} disabled={claiming}>
+                    <PrimaryButton onClick={() => void handleClaim()} disabled={claiming}>
                       {claiming ? "กำลังบันทึกสิทธิ์..." : "รับสิทธิ์ผ่าน LINE"}
                     </PrimaryButton>
                     {!isFriend ? (
@@ -664,18 +700,21 @@ export default function PharmacyPlusPage() {
                           เพิ่มเพื่อน
                         </a>
                       ) : null}
-                      <SecondaryButton
-                        className="mt-3"
-                        onClick={async () => {
-                          const nextFriendship = await refreshFriendship();
-                          const unlocked = Boolean(nextFriendship?.friendFlag);
-                          if (unlocked) {
-                            await logEvent("add_friend_success", { friendFlag: true, qrId: source.qrId ?? null }, "gate");
-                          }
-                          setStep(unlocked ? gateReturnStep : "reward");
-                        }}
-                      >
-                        {isFriend ? "ไปต่อ" : "ฉันเพิ่มเพื่อนแล้ว"}
+                      <PrimaryButton className="mt-3" onClick={handleGateCheck} disabled={gateChecking || claiming}>
+                        {gateChecking ? "กำลังตรวจสอบ..." : isFriend ? "ไปต่อ" : "ฉันเพิ่มเพื่อนแล้ว"}
+                      </PrimaryButton>
+                      {gateMessage ? (
+                        <div className="mt-3 rounded-[1.2rem] border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
+                          {gateMessage}
+                        </div>
+                      ) : null}
+                      {gateAttempts >= 2 && !isFriend ? (
+                        <SecondaryButton className="mt-3" onClick={handleGateBypass} disabled={claiming}>
+                          ยืนยันว่าเพิ่มแล้ว ดำเนินการต่อ
+                        </SecondaryButton>
+                      ) : null}
+                      <SecondaryButton className="mt-3" onClick={() => setStep(gateReturnStep)} disabled={claiming || gateChecking}>
+                        กลับไปหน้ารางวัล
                       </SecondaryButton>
                     </div>
                   </div>
@@ -734,34 +773,15 @@ function LandingHero({ onStart, rewardTeasers }: { onStart: () => void; rewardTe
   };
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-[1.8rem] border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-        <div className="flex items-center justify-between px-1 pb-2">
-          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Flow</div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">4 ขั้นง่ายๆ</div>
-        </div>
-        <div className="grid grid-cols-4 gap-2">
-          {BOARD_STEPS.map(({ title, icon: Icon }, index) => (
-            <div key={title} className="flex flex-col items-center text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ebfff0] text-[#0f7a43]">
-                <Icon size={18} />
-              </div>
-              <div className="mt-1 text-[10px] font-bold leading-tight text-slate-700">{index + 1}. {title}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="overflow-hidden rounded-[2.2rem] border border-white/80 bg-[linear-gradient(180deg,#41c07b_0%,#0f7a43_100%)] p-5 pb-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.2)]">
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-[#fff4c7] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#876c12]">
-          <Sparkles size={12} /> Lucky Draw
+    <div className="space-y-5">
+      <section className="overflow-hidden rounded-[2.2rem] bg-[linear-gradient(180deg,#41c07b_0%,#0f7a43_100%)] p-5 pb-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.2)]">
+        <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white ring-1 ring-white/30 backdrop-blur">
+          <Sparkles size={12} /> Pharmacy+ Lucky Draw
         </div>
         <h1 className="mt-3 text-[2.8rem] font-black leading-[1.02] tracking-tight drop-shadow-[0_4px_0_rgba(11,84,42,0.25)]">
-          เขย่าบอล
-          <br />
-          <span className="text-[#ffe1ec]">ลุ้นโชค</span>
+          เขย่าบอล<span className="text-[#ffe1ec]">ลุ้นโชค</span>
         </h1>
-        <p className="mt-2 text-sm leading-6 text-white/90">เขย่ามือถือให้บอลคลุกกัน แตะเลือก 1 ลูก แล้วเปิดรางวัลจากร้านยาได้เลย</p>
+        <p className="mt-2 text-sm leading-6 text-white/90">เขย่า 1 ครั้ง แตะเลือก 1 ลูก แล้วรับรางวัลเลย</p>
 
         <div
           role="button"
@@ -773,8 +793,8 @@ function LandingHero({ onStart, rewardTeasers }: { onStart: () => void; rewardTe
               triggerPreview();
             }
           }}
-          aria-label="ลองเขย่าดูก่อน"
-          className="group relative mx-auto mt-4 block h-72 w-full cursor-pointer select-none"
+          aria-label="ลองเขย่าลูกบอล"
+          className="relative mx-auto mt-5 block h-72 w-full cursor-pointer select-none"
         >
           <div className={`relative mx-auto h-full w-[15rem] ${previewShaking ? "pp-shake" : ""}`}>
             <div className="absolute inset-x-2 top-0 h-20 rounded-t-[5rem] border-x-[6px] border-t-[6px] border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(221,247,255,0.92)_100%)]" />
@@ -798,9 +818,6 @@ function LandingHero({ onStart, rewardTeasers }: { onStart: () => void; rewardTe
               Pharmacy+
             </div>
           </div>
-          <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-[#0f7a43] opacity-90 group-active:opacity-60">
-            Tap to preview
-          </div>
         </div>
 
         <button
@@ -808,16 +825,35 @@ function LandingHero({ onStart, rewardTeasers }: { onStart: () => void; rewardTe
           onClick={onStart}
           className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-white px-5 py-4 text-lg font-black text-[#0f7a43] shadow-[0_18px_30px_rgba(15,23,42,0.18)] transition hover:bg-[#f4fff8]"
         >
-          <Sparkles size={20} /> เริ่มเขย่าเลย
+          <Sparkles size={20} /> เริ่มเล่นเลย
         </button>
-        <div className="mt-3 text-center text-xs text-white/85">กติกา: เขย่า 1 ครั้ง แล้วแตะเลือก 1 ลูกเพื่อลุ้นรางวัล</div>
+      </section>
+
+      <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+        <div className="text-lg font-black text-slate-950">วิธีเล่น</div>
+        <div className="mt-3 divide-y divide-slate-100">
+          {BOARD_STEPS.map(({ title, description, icon: Icon }, index) => (
+            <div key={title} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+              <div className="relative flex h-12 w-12 flex-none items-center justify-center rounded-2xl bg-[#ebfff0] text-[#0f7a43]">
+                <Icon size={20} />
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#0f7a43] text-[10px] font-black text-white shadow-sm">
+                  {index + 1}
+                </span>
+              </div>
+              <div className="min-w-0 pt-0.5">
+                <div className="text-sm font-black text-slate-950">{title}</div>
+                <div className="mt-0.5 text-sm leading-6 text-slate-600">{description}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
       {rewardTeasers.length ? (
-        <section className="rounded-[1.8rem] border border-slate-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+        <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
           <div className="flex items-center gap-2">
             <div className="rounded-xl bg-[#ebfff0] p-1.5 text-[#0f7a43]"><Gift size={14} /></div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">ตัวอย่างของรางวัล</div>
+            <div className="text-lg font-black text-slate-950">ของรางวัล</div>
           </div>
           <div className="mt-3 grid gap-2">
             {rewardTeasers.map((item) => (
