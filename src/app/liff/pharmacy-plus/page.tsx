@@ -366,8 +366,6 @@ export default function PharmacyPlusPage() {
   const [step, setStep] = useState<Step>("landing");
   const [sessionId] = useState(() => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`);
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [branch, setBranch] = useState("สาขาใกล้ฉัน");
   const [reward, setReward] = useState<CampaignReward | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [claiming, setClaiming] = useState(false);
