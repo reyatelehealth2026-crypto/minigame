@@ -16,6 +16,7 @@ import {
   Smartphone,
   Store,
   Ticket,
+  Trophy,
   UserRound,
   ShieldCheck,
 } from "lucide-react";
@@ -554,12 +555,14 @@ export default function PharmacyPlusPage() {
   };
 
   const boardStep: Step = step === "landing" ? "register" : step === "gate" || step === "wallet" || step === "success" ? "reward" : step;
+  const isGameMode = step === "shake" || step === "pick" || step === "reward";
 
   return (
+    <>
     <div className="mx-auto flex w-full max-w-md flex-col gap-4 pb-24">
       {step === "landing" ? (
         <LandingHero onStart={() => setStep("register")} rewardTeasers={config?.rewardTeasers ?? []} />
-      ) : (
+      ) : isGameMode ? null : (
         <>
           <StoryboardHeader current={boardStep} />
           <PhoneFrame step={step}>
@@ -604,77 +607,6 @@ export default function PharmacyPlusPage() {
                       <PrimaryButton className="mt-4" disabled={!name.trim()} onClick={handleRegister}>ถัดไป · เขย่าโทรศัพท์</PrimaryButton>
                       <div className="mt-3 text-xs leading-5 text-slate-500">* ข้อมูลของคุณจะถูกเก็บเป็นความลับ</div>
                     </div>
-                  </div>
-                )}
-
-                {step === "shake" && (
-                  <div className="space-y-5 text-center">
-                    <div className="rounded-[1.75rem] border border-white/80 bg-[linear-gradient(180deg,#bfe6ff_0%,#eff8ff_100%)] p-4 pb-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-                      <ShakeBallBox shaking={shaking} phoneMode />
-                      <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-[#0d456a]">
-                        <Sparkles size={12} /> {shaking ? "Mixing balls" : shakeCompleted ? "Ready to pick" : "Tap to shake"}
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-slate-700">
-                        {shaking
-                          ? "บอลกำลังกระเด้งในเครื่อง... อยู่นิ่งๆ รอสัก 1 วินาที"
-                          : shakeCompleted
-                            ? "ผสมเสร็จแล้ว! ไปแตะเลือก 1 ลูกที่รู้สึกใช่"
-                            : "กดปุ่มเขย่าเพื่อคลุกบอลในโถ ก่อนเลือกลูกโชคดี"}
-                      </div>
-                    </div>
-                    {shakeCompleted ? (
-                      <PrimaryButton onClick={goToPick}>
-                        <Pill size={18} /> ไปแตะเลือก 1 ลูก
-                      </PrimaryButton>
-                    ) : (
-                      <PrimaryButton onClick={handleShake} disabled={shaking} className={shaking ? "" : "pp-pulse"}>
-                        <Smartphone size={18} /> {shaking ? "กำลังเขย่า..." : "เขย่าโทรศัพท์"}
-                      </PrimaryButton>
-                    )}
-                  </div>
-                )}
-
-                {step === "pick" && (
-                  <div className="space-y-4 text-center">
-                    <div className="rounded-[1.75rem] border border-white/80 bg-[linear-gradient(180deg,#b8e3ff_0%,#f2fbff_100%)] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-                      <div className="text-2xl font-black text-slate-950">แตะเลือก 1 ลูก</div>
-                      <div className="mt-1 text-sm leading-6 text-slate-600">เลือกได้แค่ 1 ลูกนะ แล้วระบบจะเปิดรางวัลให้ทันที</div>
-                      <div className="relative mx-auto mt-5 h-80 w-full max-w-[17rem]">
-                        {BALLS.map((ball, index) => (
-                          <Ball
-                            key={index}
-                            color={ball.color}
-                            gloss={ball.gloss}
-                            size="lg"
-                            selected={selectedBall === index}
-                            disabled={drawing}
-                            onClick={() => void handlePickBall(index)}
-                            style={PICK_LAYOUT[index]}
-                            className={selectedBall === null && !drawing ? "pp-float" : ""}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    {drawing ? <div className="text-sm font-semibold text-[#159243]">กำลังเปิดรางวัล...</div> : null}
-                  </div>
-                )}
-
-                {step === "reward" && reward && (
-                  <div className="space-y-4 text-center">
-                    <div className="rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#1aa645]">คุณได้รับ</div>
-                      <RewardCapsule reward={reward} />
-                      <div className="-mt-2 text-3xl font-black tracking-tight text-slate-950">{reward.title}</div>
-                      <div className="mt-2 text-base font-bold text-slate-700">{reward.detail}</div>
-                    </div>
-                    <PrimaryButton onClick={() => void handleClaim()} disabled={claiming}>
-                      {claiming ? "กำลังบันทึกสิทธิ์..." : "รับสิทธิ์ผ่าน LINE"}
-                    </PrimaryButton>
-                    {!isFriend ? (
-                      <div className="rounded-[1.4rem] border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
-                        เล่นจบและได้รางวัลแล้ว เหลือแค่เพิ่มเพื่อน LINE OA เพื่อปลดล็อกคูปอง
-                      </div>
-                    ) : null}
                   </div>
                 )}
 
@@ -760,6 +692,319 @@ export default function PharmacyPlusPage() {
         </>
       )}
     </div>
+    {isGameMode ? (
+      <GameOverlay
+        step={step as "shake" | "pick" | "reward"}
+        shaking={shaking}
+        shakeCompleted={shakeCompleted}
+        selectedBall={selectedBall}
+        drawing={drawing}
+        reward={reward}
+        isFriend={isFriend}
+        claiming={claiming}
+        onShake={handleShake}
+        onGoToPick={goToPick}
+        onPickBall={(i) => void handlePickBall(i)}
+        onClaim={() => void handleClaim()}
+      />
+    ) : null}
+    </>
+  );
+}
+
+function GameOverlay({
+  step,
+  shaking,
+  shakeCompleted,
+  selectedBall,
+  drawing,
+  reward,
+  isFriend,
+  claiming,
+  onShake,
+  onGoToPick,
+  onPickBall,
+  onClaim,
+}: {
+  step: "shake" | "pick" | "reward";
+  shaking: boolean;
+  shakeCompleted: boolean;
+  selectedBall: number | null;
+  drawing: boolean;
+  reward: CampaignReward | null;
+  isFriend: boolean;
+  claiming: boolean;
+  onShake: () => void;
+  onGoToPick: () => void;
+  onPickBall: (index: number) => void;
+  onClaim: () => void;
+}) {
+  const stageIndex = step === "shake" ? 0 : step === "pick" ? 1 : 2;
+  const stageEn = step === "shake" ? "SHAKE" : step === "pick" ? "PICK" : "REVEAL";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 overflow-hidden text-white"
+      style={{ background: "radial-gradient(ellipse at 50% 0%, #1d3b76 0%, #0c1a3f 55%, #030714 100%)" }}
+    >
+      <div className="pp-stars pointer-events-none absolute inset-0 opacity-70" />
+      <div className="pp-sweep pointer-events-none absolute inset-0" />
+
+      <div className="relative flex w-full flex-col" style={{ minHeight: "100dvh" }}>
+        <header className="flex items-center justify-between px-5 pt-6">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur-md">
+              <Pill size={16} className="text-emerald-300" />
+            </div>
+            <div>
+              <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-300">Pharmacy+ Lucky Draw</div>
+              <div className="text-[11px] font-semibold text-white/70">
+                STAGE {stageIndex + 1}/3 · <span className="text-white">{stageEn}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  i < stageIndex
+                    ? "w-5 bg-emerald-400/70"
+                    : i === stageIndex
+                      ? "w-7 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]"
+                      : "w-3 bg-white/20"
+                }`}
+              />
+            ))}
+          </div>
+        </header>
+
+        <div className="flex flex-1 flex-col items-center justify-center px-5 pb-8 pt-4">
+          {step === "shake" && (
+            <ShakeArena shaking={shaking} completed={shakeCompleted} onShake={onShake} onNext={onGoToPick} />
+          )}
+          {step === "pick" && (
+            <PickArena selectedBall={selectedBall} drawing={drawing} onPick={onPickBall} />
+          )}
+          {step === "reward" && reward && (
+            <RewardArena reward={reward} isFriend={isFriend} onClaim={onClaim} claiming={claiming} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GameButton({
+  children,
+  pulse = false,
+  className = "",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { pulse?: boolean }) {
+  return (
+    <button
+      {...props}
+      className={`relative inline-flex w-full items-center justify-center gap-2.5 rounded-[1.6rem] bg-gradient-to-b from-[#3ae080] to-[#0b8f3d] px-8 py-4 text-base font-black uppercase tracking-[0.2em] text-white shadow-[0_18px_38px_rgba(14,140,60,0.45),inset_0_-5px_0_rgba(0,0,0,0.22),inset_0_2px_0_rgba(255,255,255,0.35)] transition-transform active:translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed ${pulse ? "pp-neon-ring" : ""} ${className}`}
+    >
+      <span className="pointer-events-none absolute inset-x-2 top-1 h-1/2 rounded-[1.3rem] bg-gradient-to-b from-white/30 to-white/0" />
+      <span className="relative z-[1] flex items-center gap-2">{children}</span>
+    </button>
+  );
+}
+
+function BigShakeJar({ shaking }: { shaking: boolean }) {
+  return (
+    <div className={`relative mx-auto aspect-[4/5] w-full max-w-[19rem] ${shaking ? "pp-shake" : ""}`}>
+      <div className="pointer-events-none absolute -inset-6 rounded-[3.5rem] bg-[radial-gradient(circle_at_50%_35%,rgba(94,204,255,0.4)_0%,rgba(94,204,255,0)_65%)] blur-xl" />
+      <div className="absolute inset-0 overflow-hidden rounded-[2.8rem] border-[6px] border-white/85 bg-[radial-gradient(circle_at_50%_20%,#ffffff_0%,#dff3ff_55%,#8bc7f2_100%)] shadow-[inset_0_0_40px_rgba(255,255,255,0.9),0_30px_55px_rgba(5,14,36,0.55)]">
+        <div className="pointer-events-none absolute inset-x-8 top-4 h-8 rounded-full bg-white/60 blur-[3px]" />
+        {SHAKE_BALLS.map((ball, index) => {
+          const layout = CLUSTER_LAYOUT[index % CLUSTER_LAYOUT.length];
+          return (
+            <Ball
+              key={index}
+              color={ball.color}
+              gloss={ball.gloss}
+              size="md"
+              style={{ left: layout.left, top: layout.top }}
+              className={shaking ? layout.spin : index % 2 === 0 ? "pp-float" : "pp-bob"}
+            />
+          );
+        })}
+      </div>
+      <div className="absolute inset-x-10 -bottom-2 flex h-11 items-center justify-center rounded-[1.3rem] bg-[linear-gradient(180deg,#ffe27a_0%,#e99b1a_100%)] text-[11px] font-black uppercase tracking-[0.3em] text-[#4a3100] shadow-[0_10px_20px_rgba(0,0,0,0.35),inset_0_2px_0_rgba(255,255,255,0.5)]">
+        Pharmacy+
+      </div>
+    </div>
+  );
+}
+
+function ShakeArena({
+  shaking,
+  completed,
+  onShake,
+  onNext,
+}: {
+  shaking: boolean;
+  completed: boolean;
+  onShake: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <>
+      <div className="text-center">
+        <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.3em] text-emerald-200 ring-1 ring-emerald-300/30">
+          <Sparkles size={10} /> Step 1 of 3
+        </div>
+        <h1 className="mt-2 text-[2.1rem] font-black leading-none tracking-tight drop-shadow-[0_4px_12px_rgba(52,211,153,0.25)]">
+          {shaking ? "กำลังเขย่า..." : completed ? "พร้อมเลือกแล้ว!" : "เขย่าจับโชค"}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-white/70">
+          {shaking
+            ? "บอลกำลังกระเด้งในเครื่อง อย่าเพิ่งปล่อย!"
+            : completed
+              ? "ไปแตะเลือกลูกโชคดีได้เลย"
+              : "แตะปุ่มด้านล่างเพื่อคลุกลูกบอล"}
+        </p>
+      </div>
+
+      <div className="my-6 flex w-full flex-1 items-center justify-center">
+        <BigShakeJar shaking={shaking} />
+      </div>
+
+      <div className="w-full max-w-xs">
+        {completed ? (
+          <GameButton onClick={onNext}>
+            <Pill size={18} />
+            <span>เลือกลูกโชคดี</span>
+          </GameButton>
+        ) : (
+          <GameButton onClick={onShake} disabled={shaking} pulse={!shaking}>
+            <Smartphone size={18} />
+            <span>{shaking ? "กำลังเขย่า" : "เขย่าเลย"}</span>
+          </GameButton>
+        )}
+      </div>
+    </>
+  );
+}
+
+function PickArena({
+  selectedBall,
+  drawing,
+  onPick,
+}: {
+  selectedBall: number | null;
+  drawing: boolean;
+  onPick: (index: number) => void;
+}) {
+  return (
+    <>
+      <div className="text-center">
+        <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.3em] text-emerald-200 ring-1 ring-emerald-300/30">
+          <Sparkles size={10} /> Step 2 of 3
+        </div>
+        <h1 className="mt-2 text-[2.1rem] font-black leading-none tracking-tight">
+          {drawing ? "กำลังเปิดรางวัล..." : "แตะเลือก 1 ลูก"}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-white/70">
+          {drawing ? "เสี่ยงทายของคุณกำลังเปิดออก" : "เลือกลูกบอลที่รู้สึกใช่ แล้วเปิดรางวัลทันที"}
+        </p>
+      </div>
+
+      <div className="my-4 flex w-full flex-1 items-center justify-center">
+        <div className="relative h-80 w-full max-w-[22rem]">
+          <div className="pointer-events-none absolute inset-0 -m-6 rounded-[3rem] bg-[radial-gradient(ellipse_at_50%_50%,rgba(94,211,155,0.22)_0%,rgba(94,211,155,0)_70%)] blur-md" />
+          {BALLS.map((ball, index) => (
+            <Ball
+              key={index}
+              color={ball.color}
+              gloss={ball.gloss}
+              size="lg"
+              selected={selectedBall === index}
+              disabled={drawing}
+              onClick={() => onPick(index)}
+              style={PICK_LAYOUT[index]}
+              className={
+                selectedBall === null && !drawing
+                  ? "pp-float"
+                  : selectedBall === index
+                    ? "pp-pop"
+                    : "opacity-40"
+              }
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex h-10 items-center justify-center">
+        {drawing ? (
+          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-5 py-2 ring-1 ring-emerald-400/40 backdrop-blur">
+            <LoaderCircle className="animate-spin text-emerald-300" size={16} />
+            <div className="text-sm font-semibold text-emerald-100">กำลังเปิดรางวัล...</div>
+          </div>
+        ) : (
+          <div className="text-xs text-white/50">แตะ 1 ลูกเพื่อเปิดรางวัล</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function RewardArena({
+  reward,
+  isFriend,
+  onClaim,
+  claiming,
+}: {
+  reward: CampaignReward;
+  isFriend: boolean;
+  onClaim: () => void;
+  claiming: boolean;
+}) {
+  useEffect(() => {
+    confetti({
+      particleCount: 120,
+      spread: 100,
+      origin: { y: 0.42 },
+      colors: ["#ffd64a", "#ff6b6b", "#4ea7ff", "#58c247", "#ff7ec3"],
+    });
+  }, []);
+
+  return (
+    <>
+      <div className="pp-flash pointer-events-none absolute inset-0 bg-white" />
+      <div className="text-center">
+        <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-300/15 px-3 py-1 text-[11px] font-black uppercase tracking-[0.3em] text-amber-200 ring-1 ring-amber-300/40">
+          <Trophy size={12} /> You win!
+        </div>
+        <h1 className="mt-3 text-[2.3rem] font-black leading-none tracking-tight drop-shadow-[0_4px_12px_rgba(255,213,74,0.35)]">
+          {reward.title}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-white/75">{reward.detail}</p>
+      </div>
+
+      <div className="my-5 flex flex-1 items-center justify-center">
+        <div className="relative">
+          <div className="pointer-events-none absolute -inset-16 rounded-full bg-[conic-gradient(from_0deg,rgba(255,213,94,0.35),rgba(255,107,107,0.3),rgba(94,188,255,0.3),rgba(94,247,168,0.35),rgba(255,213,94,0.35))] blur-2xl pp-orbit" />
+          <div className="relative">
+            <RewardCapsule reward={reward} />
+          </div>
+        </div>
+      </div>
+
+      <div className="w-full max-w-xs space-y-3">
+        <GameButton onClick={onClaim} disabled={claiming}>
+          <Ticket size={18} />
+          <span>{claiming ? "กำลังบันทึก..." : "รับสิทธิ์ผ่าน LINE"}</span>
+        </GameButton>
+        {!isFriend ? (
+          <div className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-center text-xs leading-5 text-amber-100">
+            ต้องเพิ่มเพื่อน LINE OA เพื่อปลดล็อกคูปอง
+          </div>
+        ) : null}
+      </div>
+    </>
   );
 }
 
