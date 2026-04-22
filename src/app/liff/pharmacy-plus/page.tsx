@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import confetti from "canvas-confetti";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   CheckCircle2,
   Gift,
   HeartHandshake,
   LoaderCircle,
+  LogIn,
   Pill,
   Sparkles,
   Smartphone,
@@ -41,8 +43,7 @@ import {
   type CampaignReward,
 } from "@/lib/pharmacy-plus";
 
-const STEPS = ["landing", "shake", "pick", "reward", "gate", "wallet", "success"] as const;
-type Step = (typeof STEPS)[number];
+type Step = "landing" | "shake" | "pick" | "reward" | "gate" | "wallet" | "success";
 
 const BOARD_STEPS = [
   { key: "shake", title: "เขย่าโทรศัพท์", description: "ผสมลูกบอลให้เข้ากัน", icon: Smartphone },
@@ -260,58 +261,6 @@ function PhoneFrame({ children, step }: { children: ReactNode; step: Step }) {
         <div className="px-5 pb-6 pt-5">{children}</div>
       </div>
     </section>
-  );
-}
-
-function ShakeBallBox({
-  shaking,
-  phoneMode = false,
-  balls = SHAKE_BALLS,
-}: {
-  shaking: boolean;
-  phoneMode?: boolean;
-  balls?: readonly { color: string; gloss: string }[];
-}) {
-  const container = phoneMode
-    ? "relative mx-auto h-[22rem] w-[13rem] rounded-[2.4rem] border-[7px] border-slate-900 bg-[linear-gradient(180deg,#12355b_0%,#0a2540_100%)] shadow-[0_22px_50px_rgba(15,23,42,0.28)]"
-    : "relative mx-auto h-72 w-64";
-
-  return (
-    <div className={`${container} ${shaking ? "pp-shake" : ""}`}>
-      {phoneMode ? (
-        <>
-          <div className="absolute left-1/2 top-2 h-4 w-20 -translate-x-1/2 rounded-full bg-slate-900" />
-          <div className="absolute left-1/2 top-5 h-1.5 w-10 -translate-x-1/2 rounded-full bg-slate-700/70" />
-        </>
-      ) : null}
-      <div
-        className={
-          phoneMode
-            ? "absolute inset-x-3 bottom-14 top-10 overflow-hidden rounded-[1.6rem] bg-[radial-gradient(circle_at_50%_20%,#d8f4ff_0%,#9ddcff_55%,#5ebbf4_100%)] ring-1 ring-white/40"
-            : "absolute inset-0 overflow-hidden rounded-[2rem] border-[6px] border-white/95 bg-[radial-gradient(circle_at_50%_20%,#ffffff_0%,#dff3ff_60%,#a7e0ff_100%)] shadow-[inset_0_0_20px_rgba(255,255,255,0.8),0_20px_30px_rgba(15,23,42,0.12)]"
-        }
-      >
-        <div className="pointer-events-none absolute inset-x-4 top-3 h-6 rounded-full bg-white/40 blur-[2px]" />
-        {balls.map((ball, index) => {
-          const layout = CLUSTER_LAYOUT[index % CLUSTER_LAYOUT.length];
-          return (
-            <Ball
-              key={index}
-              color={ball.color}
-              gloss={ball.gloss}
-              size={phoneMode ? "sm" : "md"}
-              style={{ left: layout.left, top: layout.top }}
-              className={shaking ? layout.spin : index % 2 === 0 ? "pp-float" : "pp-bob"}
-            />
-          );
-        })}
-      </div>
-      {phoneMode ? (
-        <div className="absolute inset-x-6 bottom-3 flex h-8 items-center justify-center rounded-full bg-[linear-gradient(180deg,#f8fbff_0%,#d0e6ff_100%)] text-[10px] font-black uppercase tracking-[0.24em] text-[#14457a] shadow-inner">
-          Lucky Draw
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -582,10 +531,16 @@ export default function PharmacyPlusPage() {
     <div className="mx-auto flex w-full max-w-md flex-col gap-4 pb-24">
       {step === "landing" ? (
         <LandingHero
-          onStart={handleStart}
-          starting={registering || !ready}
-          displayName={profile?.displayName ?? null}
+          configLoading={config === null}
+          campaignName={config?.campaignName ?? null}
+          benefitBullets={config?.benefitBullets ?? []}
           rewardTeasers={config?.rewardTeasers ?? []}
+          onStart={handleStart}
+          starting={registering}
+          liffReady={ready}
+          loggedIn={loggedIn}
+          onLogin={login}
+          displayName={profile?.displayName ?? null}
         />
       ) : isGameMode ? null : (
         <>
@@ -739,8 +694,15 @@ function GameOverlay({
   onPickBall: (index: number) => void;
   onClaim: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const stageIndex = step === "shake" ? 0 : step === "pick" ? 1 : 2;
   const stageEn = step === "shake" ? "SHAKE" : step === "pick" ? "PICK" : "REVEAL";
+
+  const stepPanelVariants = {
+    initial: reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 },
+    animate: reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 },
+    exit: reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 },
+  };
 
   return (
     <div
@@ -789,16 +751,29 @@ function GameOverlay({
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-5 pb-8 pt-4">
-          {step === "shake" && (
-            <ShakeArena shaking={shaking} completed={shakeCompleted} onShake={onShake} onNext={onGoToPick} />
-          )}
-          {step === "pick" && (
-            <PickArena selectedBall={selectedBall} drawing={drawing} onPick={onPickBall} />
-          )}
-          {step === "reward" && reward && (
-            <RewardArena reward={reward} isFriend={isFriend} onClaim={onClaim} claiming={claiming} />
-          )}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 pb-8 pt-4">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={step}
+              role="presentation"
+              variants={stepPanelVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: reduceMotion ? 0.16 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="flex min-h-0 w-full flex-1 flex-col items-center justify-center"
+            >
+              {step === "shake" ? (
+                <ShakeArena shaking={shaking} completed={shakeCompleted} onShake={onShake} onNext={onGoToPick} />
+              ) : null}
+              {step === "pick" ? (
+                <PickArena selectedBall={selectedBall} drawing={drawing} onPick={onPickBall} />
+              ) : null}
+              {step === "reward" && reward ? (
+                <RewardArena reward={reward} isFriend={isFriend} onClaim={onClaim} claiming={claiming} />
+              ) : null}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>
@@ -1021,15 +996,27 @@ function RewardArena({
 }
 
 function LandingHero({
+  configLoading,
+  campaignName,
+  benefitBullets,
+  rewardTeasers,
   onStart,
   starting,
+  liffReady,
+  loggedIn,
+  onLogin,
   displayName,
-  rewardTeasers,
 }: {
+  configLoading: boolean;
+  campaignName: string | null;
+  benefitBullets: string[];
+  rewardTeasers: string[];
   onStart: () => void;
   starting: boolean;
+  liffReady: boolean;
+  loggedIn: boolean;
+  onLogin: () => void;
   displayName: string | null;
-  rewardTeasers: string[];
 }) {
   const [previewShaking, setPreviewShaking] = useState(false);
 
@@ -1041,7 +1028,8 @@ function LandingHero({
     window.setTimeout(() => setPreviewShaking(false), 1400);
   };
 
-  const disabled = starting || !displayName;
+  const canStart = liffReady && loggedIn && Boolean(displayName?.trim());
+  const startDisabled = starting || !canStart;
 
   return (
     <div className="space-y-5">
@@ -1052,68 +1040,136 @@ function LandingHero({
         <h1 className="mt-3 text-[2.8rem] font-black leading-[1.02] tracking-tight drop-shadow-[0_4px_0_rgba(11,84,42,0.25)]">
           เขย่าบอล<span className="text-[#ffe1ec]">ลุ้นโชค</span>
         </h1>
+        {configLoading ? (
+          <div className="pp-landing-skeleton mt-2 h-4 w-48 max-w-full animate-pulse rounded-full bg-white/25" aria-hidden />
+        ) : campaignName ? (
+          <p className="mt-2 text-sm font-bold leading-snug text-white/90">{campaignName}</p>
+        ) : null}
         <p className="mt-2 text-sm leading-6 text-white/90">เขย่า 1 ครั้ง แตะเลือก 1 ลูก แล้วรับรางวัลเลย</p>
-        {displayName ? (
+        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">ใช้เวลาไม่ถึง 1 นาที · 3 ขั้น</p>
+
+        {liffReady && loggedIn && displayName ? (
           <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur">
             เล่นในชื่อ <span className="font-black">{displayName}</span>
           </div>
         ) : null}
 
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={triggerPreview}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              triggerPreview();
-            }
-          }}
-          aria-label="ลองเขย่าลูกบอล"
-          className="relative mx-auto mt-5 block h-72 w-full cursor-pointer select-none"
-        >
-          <div className={`relative mx-auto h-full w-[15rem] ${previewShaking ? "pp-shake" : ""}`}>
-            <div className="absolute inset-x-2 top-0 h-20 rounded-t-[5rem] border-x-[6px] border-t-[6px] border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(221,247,255,0.92)_100%)]" />
-            <div className="absolute inset-x-2 top-14 bottom-12 overflow-hidden rounded-[2.4rem] border-[6px] border-white/90 bg-[radial-gradient(circle_at_50%_25%,#ffffff_0%,#e6f5ff_55%,#a7dcff_100%)] shadow-[inset_0_0_25px_rgba(255,255,255,0.9),0_22px_32px_rgba(15,23,42,0.18)]">
-              <div className="pointer-events-none absolute inset-x-4 top-3 h-6 rounded-full bg-white/50 blur-[2px]" />
-              {SHAKE_BALLS.slice(0, 10).map((ball, index) => {
-                const layout = CLUSTER_LAYOUT[index % CLUSTER_LAYOUT.length];
-                return (
-                  <Ball
-                    key={index}
-                    color={ball.color}
-                    gloss={ball.gloss}
-                    size="md"
-                    style={{ left: layout.left, top: layout.top }}
-                    className={previewShaking ? layout.spin : index % 2 === 0 ? "pp-float" : "pp-bob"}
-                  />
-                );
-              })}
-            </div>
-            <div className="absolute inset-x-6 bottom-0 flex h-14 items-center justify-center rounded-b-[1.8rem] bg-[linear-gradient(180deg,#ffd64a_0%,#f39a1d_100%)] text-sm font-black uppercase tracking-[0.22em] text-[#5a3a00] shadow-[0_10px_20px_rgba(0,0,0,0.18)]">
-              Pharmacy+
+        {configLoading ? (
+          <div
+            className="relative mx-auto mt-5 block h-72 w-full select-none"
+            aria-hidden
+          >
+            <div className="pp-landing-skeleton mx-auto h-full w-[15rem] animate-pulse rounded-[2.4rem] bg-white/20 ring-1 ring-white/25" />
+          </div>
+        ) : (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={triggerPreview}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                triggerPreview();
+              }
+            }}
+            aria-label="ลองเขย่าลูกบอล"
+            className="relative mx-auto mt-5 block h-72 w-full cursor-pointer select-none"
+          >
+            <div className={`relative mx-auto h-full w-[15rem] ${previewShaking ? "pp-shake" : ""}`}>
+              <div className="absolute inset-x-2 top-0 h-20 rounded-t-[5rem] border-x-[6px] border-t-[6px] border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(221,247,255,0.92)_100%)]" />
+              <div className="absolute inset-x-2 top-14 bottom-12 overflow-hidden rounded-[2.4rem] border-[6px] border-white/90 bg-[radial-gradient(circle_at_50%_25%,#ffffff_0%,#e6f5ff_55%,#a7dcff_100%)] shadow-[inset_0_0_25px_rgba(255,255,255,0.9),0_22px_32px_rgba(15,23,42,0.18)]">
+                <div className="pointer-events-none absolute inset-x-4 top-3 h-6 rounded-full bg-white/50 blur-[2px]" />
+                {SHAKE_BALLS.slice(0, 10).map((ball, index) => {
+                  const layout = CLUSTER_LAYOUT[index % CLUSTER_LAYOUT.length];
+                  return (
+                    <Ball
+                      key={index}
+                      color={ball.color}
+                      gloss={ball.gloss}
+                      size="md"
+                      style={{ left: layout.left, top: layout.top }}
+                      className={previewShaking ? layout.spin : index % 2 === 0 ? "pp-float" : "pp-bob"}
+                    />
+                  );
+                })}
+              </div>
+              <div className="absolute inset-x-6 bottom-0 flex h-14 items-center justify-center rounded-b-[1.8rem] bg-[linear-gradient(180deg,#ffd64a_0%,#f39a1d_100%)] text-sm font-black uppercase tracking-[0.22em] text-[#5a3a00] shadow-[0_10px_20px_rgba(0,0,0,0.18)]">
+                Pharmacy+
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <button
-          type="button"
-          onClick={onStart}
-          disabled={disabled}
-          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-white px-5 py-4 text-lg font-black text-[#0f7a43] shadow-[0_18px_30px_rgba(15,23,42,0.18)] transition hover:bg-[#f4fff8] disabled:opacity-60"
-        >
-          {starting ? (
-            <>
-              <LoaderCircle className="animate-spin" size={20} /> กำลังเริ่ม...
-            </>
-          ) : (
-            <>
-              <Sparkles size={20} /> เริ่มเล่นเลย
-            </>
-          )}
-        </button>
-        {!displayName ? (
-          <div className="mt-2 text-center text-[11px] text-white/80">กำลังเชื่อมต่อ LINE เพื่อดึงชื่อของคุณ...</div>
+        {configLoading ? (
+          <ul className="mt-4 space-y-2" aria-hidden>
+            {[0, 1, 2].map((i) => (
+              <li key={i} className="pp-landing-skeleton flex items-center gap-2 animate-pulse">
+                <span className="h-5 w-5 shrink-0 rounded-full bg-white/25" />
+                <span className="h-3 flex-1 rounded-full bg-white/20" />
+              </li>
+            ))}
+          </ul>
+        ) : benefitBullets.length ? (
+          <ul className="mt-4 space-y-2">
+            {benefitBullets.map((line) => (
+              <li key={line} className="flex items-start gap-2 text-sm font-semibold leading-snug text-white/95">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#b8ffd0]" aria-hidden />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {!liffReady ? (
+          <button
+            type="button"
+            disabled
+            className="mt-3 inline-flex w-full cursor-wait items-center justify-center gap-2 rounded-[1.4rem] bg-white/90 px-5 py-4 text-lg font-black text-[#0f7a43] opacity-80 shadow-[0_18px_30px_rgba(15,23,42,0.18)]"
+          >
+            <LoaderCircle className="animate-spin" size={20} /> กำลังเตรียม LINE...
+          </button>
+        ) : !loggedIn ? (
+          <button
+            type="button"
+            onClick={onLogin}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-white px-5 py-4 text-lg font-black text-[#0f7a43] shadow-[0_18px_30px_rgba(15,23,42,0.18)] transition hover:bg-[#f4fff8]"
+          >
+            <LogIn size={20} /> เข้าใช้งานผ่าน LINE
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onStart}
+            disabled={startDisabled}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-white px-5 py-4 text-lg font-black text-[#0f7a43] shadow-[0_18px_30px_rgba(15,23,42,0.18)] transition hover:bg-[#f4fff8] disabled:opacity-60"
+          >
+            {starting ? (
+              <>
+                <LoaderCircle className="animate-spin" size={20} /> กำลังเริ่ม...
+              </>
+            ) : (
+              <>
+                <Sparkles size={20} /> เริ่มเล่นเลย
+              </>
+            )}
+          </button>
+        )}
+
+        {!liffReady ? (
+          <p className="mt-2 text-center text-[11px] text-white/80">กำลังโหลด LINE LIFF เพื่อเชื่อมต่อบัญชีของคุณ</p>
+        ) : !loggedIn ? (
+          <p className="mt-2 text-center text-[11px] text-white/85">เข้าสู่ระบบ LINE เพื่อเริ่มเล่นและบันทึกสิทธิ์ของคุณ</p>
+        ) : !displayName ? (
+          <div className="mt-2 space-y-2 text-center">
+            <p className="text-[11px] text-white/85">รอดึงชื่อจากโปรไฟล์ LINE สักครู่...</p>
+            <button
+              type="button"
+              onClick={onLogin}
+              className="text-xs font-bold text-[#e8ffd0] underline decoration-white/40 underline-offset-2 hover:text-white"
+            >
+              ลองเข้าสู่ระบบใหม่
+            </button>
+          </div>
         ) : null}
       </section>
 
@@ -1137,15 +1193,29 @@ function LandingHero({
         </div>
       </section>
 
-      {rewardTeasers.length ? (
+      {configLoading ? (
+        <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]" aria-hidden>
+          <div className="pp-landing-skeleton h-5 w-32 animate-pulse rounded-lg bg-slate-200" />
+          <div className="pp-reward-scroll mt-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="pp-reward-chip pp-landing-skeleton h-10 w-40 animate-pulse rounded-full bg-slate-100" />
+            ))}
+          </div>
+        </section>
+      ) : rewardTeasers.length ? (
         <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
           <div className="flex items-center gap-2">
-            <div className="rounded-xl bg-[#ebfff0] p-1.5 text-[#0f7a43]"><Gift size={14} /></div>
+            <div className="rounded-xl bg-[#ebfff0] p-1.5 text-[#0f7a43]">
+              <Gift size={14} />
+            </div>
             <div className="text-lg font-black text-slate-950">ของรางวัล</div>
           </div>
-          <div className="mt-3 grid gap-2">
+          <div className="pp-reward-scroll mt-3">
             {rewardTeasers.map((item) => (
-              <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">
+              <div
+                key={item}
+                className="pp-reward-chip rounded-full border border-emerald-100 bg-gradient-to-r from-[#ecfdf5] to-white px-4 py-2.5 text-sm font-bold text-slate-900 shadow-sm ring-1 ring-emerald-500/10"
+              >
                 {item}
               </div>
             ))}
