@@ -22,12 +22,14 @@ import {
 import { useLiff } from "@/components/LiffProvider";
 import {
   getSfxMutedSnapshot,
+  playGlassCrack,
+  playHeartbeat,
   playReveal,
-  playShakeRumble,
   playSoftConfirm,
   playTap,
   playWin,
   setSfxMuted,
+  startSustainedRumble,
   subscribeSfxMute,
   unlockSfxFromUserGesture,
 } from "@/lib/pharmacy-plus-audio";
@@ -35,119 +37,64 @@ import { safeVibrate } from "@/lib/pharmacy-plus-feedback";
 import {
   CAMPAIGN_KEY,
   createSourceFromParams,
-  getToneClasses,
   postCampaignEvent,
   type CampaignConfig,
   type CampaignDrawResponse,
   type CampaignEventName,
   type CampaignReward,
 } from "@/lib/pharmacy-plus";
+import { Capsule, CAPSULE_TONES, CapsuleSvg, type CapsuleTone } from "@/components/pharmacy/Capsule";
+import { RewardReveal } from "@/components/pharmacy/RewardReveal";
+import { classifyReward } from "@/lib/pharmacy-plus-theme";
 
-type Step = "landing" | "shake" | "pick" | "reward" | "gate" | "wallet" | "success";
+type Step = "landing" | "play" | "reward" | "gate" | "wallet" | "success";
+type PlayPhase = "idle" | "shaking" | "settled" | "drawing";
 
 const BOARD_STEPS = [
-  { key: "shake", title: "เขย่าโทรศัพท์", description: "ผสมลูกบอลให้เข้ากัน", icon: Smartphone },
-  { key: "pick", title: "แตะเลือก 1 ลูก", description: "ลุ้นจากลูกที่ชอบ", icon: Pill },
-  { key: "reward", title: "รับรางวัล", description: "ปลดล็อกผ่าน LINE", icon: Gift },
+  { key: "play", title: "เขย่า & เลือก", description: "เขย่าแล้วแตะลูกที่ใช่", icon: Smartphone },
+  { key: "reward", title: "เปิดรางวัล", description: "ลุ้นรางวัลที่ได้", icon: Gift },
+  { key: "wallet", title: "รับสิทธิ์", description: "ปลดล็อกผ่าน LINE", icon: HeartHandshake },
 ] as const;
 
 const BOARD_KEYS = BOARD_STEPS.map((item) => item.key) as readonly Step[];
 
-const BALLS = [
-  { color: "bg-[#ff6464]", gloss: "bg-[#ffd2d2]" },
-  { color: "bg-[#ffc247]", gloss: "bg-[#fff0b6]" },
-  { color: "bg-[#4ea7ff]", gloss: "bg-[#d7ebff]" },
-  { color: "bg-[#58c247]", gloss: "bg-[#d5ffbe]" },
-  { color: "bg-[#ff7ec3]", gloss: "bg-[#ffd6ef]" },
-  { color: "bg-[#8f67ff]", gloss: "bg-[#e3d9ff]" },
-  { color: "bg-[#7fd8f2]", gloss: "bg-[#def8ff]" },
-  { color: "bg-[#ffffff]", gloss: "bg-[#f2f2f2]" },
-] as const;
-
-const SHAKE_BALLS = [
-  { color: "bg-[#ff6464]", gloss: "bg-[#ffd2d2]" },
-  { color: "bg-[#ffc247]", gloss: "bg-[#fff0b6]" },
-  { color: "bg-[#4ea7ff]", gloss: "bg-[#d7ebff]" },
-  { color: "bg-[#58c247]", gloss: "bg-[#d5ffbe]" },
-  { color: "bg-[#ff7ec3]", gloss: "bg-[#ffd6ef]" },
-  { color: "bg-[#8f67ff]", gloss: "bg-[#e3d9ff]" },
-  { color: "bg-[#7fd8f2]", gloss: "bg-[#def8ff]" },
-  { color: "bg-[#ffffff]", gloss: "bg-[#f2f2f2]" },
-  { color: "bg-[#ff6464]", gloss: "bg-[#ffd2d2]" },
-  { color: "bg-[#ffc247]", gloss: "bg-[#fff0b6]" },
-  { color: "bg-[#4ea7ff]", gloss: "bg-[#d7ebff]" },
-  { color: "bg-[#58c247]", gloss: "bg-[#d5ffbe]" },
-] as const;
+const CAPSULE_LIST: readonly CapsuleTone[] = CAPSULE_TONES;
 
 const CLUSTER_LAYOUT = [
-  { left: "6%", top: "60%", spin: "pp-jiggle-a" },
-  { left: "22%", top: "40%", spin: "pp-jiggle-b" },
-  { left: "40%", top: "24%", spin: "pp-jiggle-c" },
-  { left: "58%", top: "38%", spin: "pp-jiggle-a" },
-  { left: "34%", top: "48%", spin: "pp-jiggle-b" },
-  { left: "12%", top: "26%", spin: "pp-jiggle-c" },
-  { left: "50%", top: "58%", spin: "pp-jiggle-b" },
-  { left: "26%", top: "62%", spin: "pp-jiggle-a" },
-  { left: "44%", top: "72%", spin: "pp-jiggle-c" },
-  { left: "62%", top: "20%", spin: "pp-jiggle-b" },
-  { left: "4%", top: "76%", spin: "pp-jiggle-c" },
-  { left: "62%", top: "68%", spin: "pp-jiggle-a" },
+  { left: "8%", top: "62%" },
+  { left: "26%", top: "44%" },
+  { left: "44%", top: "28%" },
+  { left: "60%", top: "42%" },
+  { left: "36%", top: "54%" },
+  { left: "16%", top: "30%" },
+  { left: "54%", top: "60%" },
+  { left: "30%", top: "70%" },
 ] as const;
 
 const PICK_LAYOUT = [
-  { left: "10%", top: "10%" },
-  { left: "52%", top: "6%" },
-  { left: "30%", top: "28%" },
-  { left: "68%", top: "34%" },
-  { left: "6%", top: "48%" },
-  { left: "44%", top: "52%" },
-  { left: "72%", top: "62%" },
-  { left: "20%", top: "70%" },
+  { left: "8%", top: "8%" },
+  { left: "44%", top: "4%" },
+  { left: "70%", top: "20%" },
+  { left: "12%", top: "36%" },
+  { left: "44%", top: "32%" },
+  { left: "70%", top: "52%" },
+  { left: "26%", top: "60%" },
+  { left: "56%", top: "70%" },
 ] as const;
 
-const STEP_COPY: Record<Step, { eyebrow: string; title: string; description: string }> = {
-  landing: {
-    eyebrow: "Lucky Draw",
-    title: "เขย่าบอล ลุ้นโชค",
-    description: "เขย่ามือถือ 1 ครั้ง แล้วเลือก 1 ลูกเพื่อลุ้นรับของรางวัลจากร้านยา",
-  },
-  shake: {
-    eyebrow: "Step 1",
-    title: "เขย่าโทรศัพท์",
-    description: "กดปุ่มเขย่า แล้วดูลูกบอลผสมกันในเครื่อง",
-  },
-  pick: {
-    eyebrow: "Step 2",
-    title: "แตะเลือก 1 ลูก",
-    description: "เลือกลูกบอลที่ถูกใจ แล้วเปิดรางวัลทันที",
-  },
-  reward: {
-    eyebrow: "Step 3",
-    title: "เปิดรางวัล",
-    description: "รางวัลของคุณคือ...",
-  },
-  gate: {
-    eyebrow: "LINE Unlock",
-    title: "เพิ่มเพื่อนรับสิทธิ์",
-    description: "ปลดล็อกคูปองผ่าน LINE OA",
-  },
-  wallet: {
-    eyebrow: "Coupon Wallet",
-    title: "สิทธิ์พร้อมใช้",
-    description: "โชว์โค้ดนี้ให้พนักงานที่หน้าร้าน",
-  },
-  success: {
-    eyebrow: "Completed",
-    title: "เรียบร้อยแล้ว",
-    description: "เก็บโค้ดนี้ไว้ใช้ที่ร้านได้เลย",
-  },
+const STEP_COPY: Record<Exclude<Step, "play">, { eyebrow: string; title: string; description: string }> = {
+  landing: { eyebrow: "Lucky Draw", title: "เขย่าบอล ลุ้นโชค", description: "เขย่ามือถือแล้วแตะ 1 ลูกเพื่อรับรางวัล" },
+  reward: { eyebrow: "Your Reward", title: "เปิดรางวัล", description: "" },
+  gate: { eyebrow: "LINE Unlock", title: "เพิ่มเพื่อนรับสิทธิ์", description: "ปลดล็อกคูปองผ่าน LINE OA" },
+  wallet: { eyebrow: "Coupon Wallet", title: "สิทธิ์พร้อมใช้", description: "โชว์โค้ดนี้ให้พนักงานที่หน้าร้าน" },
+  success: { eyebrow: "Completed", title: "เรียบร้อยแล้ว", description: "เก็บโค้ดนี้ไว้ใช้ที่ร้านได้เลย" },
 };
 
 function PrimaryButton({ children, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`inline-flex w-full items-center justify-center gap-2 rounded-[1.35rem] bg-[#1bb249] px-5 py-3.5 text-base font-bold text-white shadow-[0_16px_30px_rgba(27,178,73,0.28)] transition hover:bg-[#11953b] disabled:opacity-50 ${className}`}
+      className={`inline-flex w-full items-center justify-center gap-2 rounded-[1.35rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-3.5 text-base font-bold tracking-wide text-[#1A2520] shadow-[0_16px_30px_rgba(212,175,122,0.4),inset_0_1px_0_rgba(255,255,255,0.55)] transition hover:brightness-105 disabled:opacity-50 ${className}`}
     >
       {children}
     </button>
@@ -158,57 +105,21 @@ function SecondaryButton({ children, className = "", ...props }: React.ButtonHTM
   return (
     <button
       {...props}
-      className={`inline-flex w-full items-center justify-center gap-2 rounded-[1.35rem] border border-slate-200 bg-white px-5 py-3.5 text-base font-semibold text-slate-900 transition hover:bg-slate-50 disabled:opacity-50 ${className}`}
+      className={`inline-flex w-full items-center justify-center gap-2 rounded-[1.35rem] border border-[#D4AF7A]/40 bg-transparent px-5 py-3.5 text-base font-semibold text-[#F5EFE0] transition hover:bg-[#F5EFE0]/5 disabled:opacity-50 ${className}`}
     >
       {children}
     </button>
   );
 }
 
-function Ball({
-  color,
-  gloss,
-  selected = false,
-  style,
-  onClick,
-  disabled = false,
-  size = "md",
-  className = "",
-}: {
-  color: string;
-  gloss: string;
-  selected?: boolean;
-  style?: CSSProperties;
-  onClick?: () => void;
-  disabled?: boolean;
-  size?: "sm" | "md" | "lg";
-  className?: string;
-}) {
-  const sizeClass = size === "lg" ? "h-20 w-20" : size === "sm" ? "h-11 w-11" : "h-16 w-16";
-  const interactive = Boolean(onClick);
-  return (
-    <button
-      type="button"
-      disabled={disabled || !interactive}
-      onClick={onClick}
-      style={style}
-      className={`absolute ${sizeClass} ${selected ? "scale-110" : ""} rounded-full ${color} shadow-[inset_0_-10px_18px_rgba(0,0,0,0.18),0_16px_24px_rgba(15,23,42,0.16)] transition duration-200 ${interactive ? "hover:scale-105 active:scale-95" : "cursor-default"} disabled:cursor-default ${className}`}
-    >
-      <span className={`pointer-events-none absolute left-3 top-3 h-4 w-4 rounded-full ${gloss} opacity-90 blur-[0.5px]`} />
-      <span className="pointer-events-none absolute inset-x-4 bottom-4 h-3 rounded-full bg-white/25 blur-[1px]" />
-      {selected ? <span className="pointer-events-none absolute inset-0 rounded-full ring-4 ring-[#43d45f] ring-offset-2 ring-offset-white" /> : null}
-    </button>
-  );
-}
-
 function StoryboardHeader({ current }: { current: Step }) {
-  const activeIndex = BOARD_KEYS.indexOf(current);
+  const activeIndex = Math.max(0, BOARD_KEYS.indexOf(current));
   return (
-    <section className="rounded-[1.8rem] border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+    <section className="rounded-[1.8rem] border border-[#D4AF7A]/30 bg-[#0A4632]/70 p-3 backdrop-blur-md shadow-[0_16px_40px_rgba(3,38,28,0.45)]">
       <div className="flex items-center justify-between px-1 pb-2">
-        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Flow</div>
-        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">
-          {activeIndex >= 0 ? `${activeIndex + 1}/${BOARD_STEPS.length}` : `0/${BOARD_STEPS.length}`}
+        <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#C8C0A8]">Flow</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#E8C994]">
+          {`${activeIndex + 1}/${BOARD_STEPS.length}`}
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -220,15 +131,15 @@ function StoryboardHeader({ current }: { current: Step }) {
               <div
                 className={`flex h-11 w-11 items-center justify-center rounded-2xl transition ${
                   isActive
-                    ? "bg-[#1bb249] text-white shadow-[0_10px_20px_rgba(27,178,73,0.35)]"
+                    ? "bg-[linear-gradient(180deg,#E8C994,#D4AF7A)] text-[#1A2520] shadow-[0_10px_20px_rgba(212,175,122,0.35)]"
                     : isDone
-                      ? "bg-[#d6f7e2] text-[#0f7a43]"
-                      : "bg-slate-100 text-slate-400"
+                      ? "bg-[#D4AF7A]/20 text-[#E8C994]"
+                      : "bg-[#F5EFE0]/5 text-[#C8C0A8]/60"
                 }`}
               >
                 <Icon size={18} />
               </div>
-              <div className={`mt-1 text-[10px] font-bold leading-tight ${isActive ? "text-slate-950" : "text-slate-500"}`}>{title}</div>
+              <div className={`mt-1 text-[10px] font-bold leading-tight ${isActive ? "text-[#F5EFE0]" : "text-[#C8C0A8]"}`}>{title}</div>
             </div>
           );
         })}
@@ -237,7 +148,7 @@ function StoryboardHeader({ current }: { current: Step }) {
         {BOARD_STEPS.map((_, index) => (
           <div
             key={index}
-            className={`h-1 flex-1 rounded-full ${index <= activeIndex ? "bg-[#1bb249]" : "bg-slate-200"}`}
+            className={`h-1 flex-1 rounded-full ${index <= activeIndex ? "bg-[linear-gradient(90deg,#D4AF7A,#E8C994)]" : "bg-[#F5EFE0]/10"}`}
           />
         ))}
       </div>
@@ -245,70 +156,57 @@ function StoryboardHeader({ current }: { current: Step }) {
   );
 }
 
-function PhoneFrame({ children, step }: { children: ReactNode; step: Step }) {
+function PhoneFrame({ children, step }: { children: ReactNode; step: Exclude<Step, "play"> }) {
   const meta = STEP_COPY[step];
   return (
-    <section className="rounded-[2.2rem] border border-slate-200/80 bg-white p-2 shadow-[0_30px_90px_rgba(15,23,42,0.10)]">
-      <div className="overflow-hidden rounded-[1.9rem] bg-[linear-gradient(180deg,#dff3ff_0%,#f9fcff_100%)] ring-1 ring-black/5">
-        <div className="bg-[#0d456a] px-5 pb-4 pt-3 text-white">
-          <div className="mx-auto h-5 w-24 rounded-full bg-slate-950/80" />
-          <div className="mt-4">
-            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#90f1a9]">{meta.eyebrow}</div>
-            <h1 className="mt-1 text-[1.75rem] font-black leading-tight tracking-tight">{meta.title}</h1>
-            <p className="mt-1.5 text-sm leading-6 text-white/82">{meta.description}</p>
-          </div>
+    <section className="relative overflow-hidden rounded-[2.2rem] border border-[#D4AF7A]/30 bg-[#063A2A]/80 p-2 shadow-[0_30px_80px_rgba(3,18,12,0.55)] backdrop-blur-md">
+      <div className="pp-noise-overlay" />
+      <div className="relative overflow-hidden rounded-[1.9rem] bg-[linear-gradient(180deg,#0A4632_0%,#063A2A_100%)] ring-1 ring-[#D4AF7A]/20">
+        <div className="px-6 pb-4 pt-6 text-[#F5EFE0]">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#E8C994]">{meta.eyebrow}</div>
+          <h1 className="font-pp-display mt-2 text-[2rem] font-semibold leading-tight tracking-tight">{meta.title}</h1>
+          {meta.description ? <p className="mt-1.5 text-sm leading-6 text-[#C8C0A8]">{meta.description}</p> : null}
+          <div className="pp-gold-divider mt-4" />
         </div>
-        <div className="px-5 pb-6 pt-5">{children}</div>
+        <div className="px-6 pb-6 pt-3">{children}</div>
       </div>
     </section>
   );
 }
 
-function RewardCapsule({ reward }: { reward: CampaignReward }) {
-  const amount = reward.title.match(/\d+/)?.[0] ?? "100";
-  return (
-    <div className="pp-pop relative mx-auto h-72 w-72">
-      <div className="absolute left-1/2 top-0 h-36 w-44 -translate-x-1/2 rounded-t-[10rem] rounded-b-[4rem] bg-[radial-gradient(circle_at_30%_25%,#f6ffe8_0%,#bdf16c_34%,#41c94b_75%,#279631_100%)] shadow-[0_22px_40px_rgba(15,23,42,0.16)]" />
-      <div className="absolute left-1/2 top-24 h-32 w-44 -translate-x-1/2 rounded-b-[10rem] rounded-t-[4rem] bg-[radial-gradient(circle_at_30%_25%,#f6ffe8_0%,#bdf16c_34%,#41c94b_75%,#279631_100%)] shadow-[0_22px_40px_rgba(15,23,42,0.16)]" />
-      <div className="absolute left-1/2 top-[7.7rem] h-24 w-36 -translate-x-1/2 rounded-[1.8rem] bg-white p-3 shadow-[0_18px_30px_rgba(15,23,42,0.12)]">
-        <div className="text-center text-xs font-bold uppercase tracking-[0.18em] text-[#ff6a7c]">คูปองส่วนลด</div>
-        <div className="mt-2 text-center text-3xl font-black text-[#ff6a3d]">{amount}</div>
-        <div className="text-center text-sm font-bold text-slate-700">บาท</div>
-      </div>
-      <div className="absolute left-8 top-20 text-xl">✨</div>
-      <div className="absolute right-8 top-24 text-xl">🎉</div>
-      <div className="absolute left-12 bottom-12 text-xl">🎊</div>
-      <div className="absolute right-10 bottom-14 text-xl">✨</div>
-    </div>
-  );
+function formatThaiDate(date?: string | null) {
+  if (!date) return null;
+  return new Date(date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function rewardToneToCapsule(tone: CampaignReward["tone"]): CapsuleTone {
+  switch (tone) {
+    case "green": return "sage";
+    case "blue": return "cobalt";
+    default: return "amber";
+  }
+}
+
+function rewardAmount(title: string): number | null {
+  const m = title.match(/\d+/);
+  return m ? Number(m[0]) : null;
 }
 
 function RewardTicketCard({ reward, label }: { reward: CampaignReward; label: string }) {
   return (
-    <div className={`rounded-[1.8rem] border p-4 shadow-[0_18px_40px_rgba(15,23,42,0.10)] ${getToneClasses(reward.tone)}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.22em] opacity-80">{label}</div>
+    <div className="rounded-[1.8rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,#0F5A3D_0%,#063A2A_100%)] p-5 text-[#F5EFE0] shadow-[0_24px_48px_rgba(3,18,12,0.6)]">
+      <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-[#E8C994]">{label}</div>
       <div className="mt-2 flex items-start justify-between gap-3">
         <div>
-          <div className="text-2xl font-black leading-tight">{reward.title}</div>
-          <div className="mt-1 text-sm opacity-90">{reward.detail}</div>
+          <div className="font-pp-display text-2xl font-semibold leading-tight">{reward.title}</div>
+          <div className="mt-1 text-sm leading-snug text-[#C8C0A8]">{reward.detail}</div>
         </div>
-        <div className="rounded-2xl bg-white/70 p-3 text-slate-900 shadow-sm">
-          <Ticket size={22} />
-        </div>
+        <div className="rounded-2xl border border-[#D4AF7A]/30 bg-[#063A2A] p-3 text-[#E8C994]"><Ticket size={22} /></div>
       </div>
-      <div className="mt-4 rounded-2xl bg-white/75 px-4 py-3 text-center text-sm font-black tracking-[0.16em] text-slate-900">{reward.couponCode}</div>
-      {reward.expiresAt ? <div className="mt-3 text-xs text-slate-700/80">ใช้ได้ถึง {formatThaiDate(reward.expiresAt)}</div> : null}
+      <div className="mt-4 rounded-2xl border border-[#D4AF7A]/30 bg-[#03261C] px-4 py-3 text-center font-mono text-base font-bold tracking-[0.18em] text-[#F5EFE0]">{reward.couponCode}</div>
+      {reward.expiresAt ? <div className="mt-3 text-xs text-[#C8C0A8]">ใช้ได้ถึง {formatThaiDate(reward.expiresAt)}</div> : null}
     </div>
   );
-}
-
-function formatThaiDate(date?: string | null) {
-  if (!date) return null;
-  return new Date(date).toLocaleDateString("th-TH", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 export default function PharmacyPlusPage() {
@@ -316,14 +214,14 @@ export default function PharmacyPlusPage() {
   const params = useSearchParams();
   const [config, setConfig] = useState<CampaignConfig | null>(null);
   const [step, setStep] = useState<Step>("landing");
+  const [playPhase, setPlayPhase] = useState<PlayPhase>("idle");
   const [sessionId] = useState(() => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`);
   const [reward, setReward] = useState<CampaignReward | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [registering, setRegistering] = useState(false);
-  const [shaking, setShaking] = useState(false);
-  const [shakeCompleted, setShakeCompleted] = useState(false);
-  const [selectedBall, setSelectedBall] = useState<number | null>(null);
+  const [selectedCapsule, setSelectedCapsule] = useState<number | null>(null);
+  const [revealComplete, setRevealComplete] = useState(false);
   const [gateReturnStep, setGateReturnStep] = useState<Step>("reward");
   const [gateChecking, setGateChecking] = useState(false);
   const [gateAttempts, setGateAttempts] = useState(0);
@@ -374,15 +272,14 @@ export default function PharmacyPlusPage() {
     void logEvent(eventName, reward ? { reward: reward.title } : undefined);
   }, [logEvent, reward, step]);
 
-  const toggleSfx = useCallback(() => {
-    setSfxMuted(!getSfxMutedSnapshot());
-  }, []);
+  const toggleSfx = useCallback(() => setSfxMuted(!getSfxMutedSnapshot()), []);
 
   const handleStart = async () => {
     if (registering) return;
     const fullName = profile?.displayName?.trim();
     if (!fullName) return;
     void unlockSfxFromUserGesture();
+    void playTap();
     setRegistering(true);
     try {
       await logEvent("registration_start", undefined, "landing");
@@ -400,44 +297,32 @@ export default function PharmacyPlusPage() {
         }),
       });
       await logEvent("registration_submit", { qrId: source.qrId ?? null }, "landing");
-      setShaking(false);
-      setShakeCompleted(false);
-      setSelectedBall(null);
-      setStep("shake");
+      setSelectedCapsule(null);
+      setReward(null);
+      setRevealComplete(false);
+      setPlayPhase("idle");
+      setStep("play");
     } finally {
       setRegistering(false);
     }
   };
 
-  const handleShake = async () => {
-    if (shaking) return;
-    void unlockSfxFromUserGesture();
-    void playShakeRumble(1600);
-    safeVibrate(12);
-    setShaking(true);
-    setShakeCompleted(false);
-    await logEvent("game_start", { trigger: "shake_tap" }, "shake");
-    window.setTimeout(() => {
-      setShaking(false);
-      setShakeCompleted(true);
-      safeVibrate([28, 40, 32]);
-    }, 1600);
-  };
+  const handleSettled = useCallback(() => {
+    setPlayPhase("settled");
+    safeVibrate([28, 40, 32]);
+  }, []);
 
-  const goToPick = () => {
-    void playTap();
-    setStep("pick");
-  };
-
-  const handlePickBall = async (index: number) => {
-    if (drawing) return;
+  const handlePickCapsule = async (index: number) => {
+    if (drawing || playPhase !== "settled") return;
     void unlockSfxFromUserGesture();
     void playTap();
     safeVibrate(14);
-    setSelectedBall(index);
+    setSelectedCapsule(index);
     setDrawing(true);
-    await logEvent("game_complete", { trigger: "tap_ball", ballIndex: index + 1 }, "pick");
+    setPlayPhase("drawing");
+    await logEvent("game_complete", { trigger: "tap_capsule", capsuleIndex: index + 1 }, "play");
 
+    const heartbeat = await playHeartbeat();
     try {
       const res = await fetch("/api/pharmacy-plus/reward/draw", {
         method: "POST",
@@ -449,19 +334,33 @@ export default function PharmacyPlusPage() {
         setReward(data.reward);
         await logEvent(
           "reward_reveal",
-          { reward: data.reward.title, storage: data.storage, existing: data.existing ?? false, qrId: source.qrId ?? null, ballIndex: index + 1 },
+          { reward: data.reward.title, storage: data.storage, existing: data.existing ?? false, qrId: source.qrId ?? null, capsuleIndex: index + 1 },
           "reward",
         );
-        void playReveal();
-        window.setTimeout(() => void playWin(), 200);
-        safeVibrate([18, 35, 22, 40, 55]);
-        confetti({ particleCount: 90, spread: 75, origin: { y: 0.6 } });
-        setTimeout(() => setStep("reward"), 400);
+        window.setTimeout(() => {
+          heartbeat?.stop();
+          setStep("reward");
+          setRevealComplete(false);
+        }, 600);
       }
     } finally {
       setDrawing(false);
+      // safety: if step didn't advance, stop heartbeat
+      window.setTimeout(() => heartbeat?.stop(), 1200);
     }
   };
+
+  const handleRevealComplete = useCallback(() => {
+    setRevealComplete(true);
+    void playWin();
+    safeVibrate([18, 35, 22, 40, 55]);
+    confetti({
+      particleCount: 100,
+      spread: 80,
+      origin: { y: 0.5 },
+      colors: ["#E8C994", "#D4AF7A", "#F5EFE0", "#9C7A3F"],
+    });
+  }, []);
 
   const handleClaim = async ({ friendOverride = false }: { friendOverride?: boolean } = {}) => {
     if (!reward) return;
@@ -523,180 +422,182 @@ export default function PharmacyPlusPage() {
     setStep("success");
   };
 
-  const boardStep: Step = step === "landing" ? "shake" : step === "gate" || step === "wallet" || step === "success" ? "reward" : step;
-  const isGameMode = step === "shake" || step === "pick" || step === "reward";
+  const boardStep: Step = step === "landing" ? "play" : step === "gate" || step === "success" ? "wallet" : step;
+  const isGameMode = step === "play" || step === "reward";
+  const stepKey = step !== "play" ? step : null;
 
   return (
     <>
-    <div className="mx-auto flex w-full max-w-md flex-col gap-4 pb-24">
-      {step === "landing" ? (
-        <LandingHero
-          configLoading={config === null}
-          campaignName={config?.campaignName ?? null}
-          benefitBullets={config?.benefitBullets ?? []}
-          rewardTeasers={config?.rewardTeasers ?? []}
-          onStart={handleStart}
-          starting={registering}
-          liffReady={ready}
-          loggedIn={loggedIn}
-          onLogin={login}
-          displayName={profile?.displayName ?? null}
-        />
-      ) : isGameMode ? null : (
-        <>
-          <StoryboardHeader current={boardStep} />
-          <PhoneFrame step={step}>
-            {!ready ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-                <LoaderCircle className="animate-spin text-[#1bb249]" size={28} />
-                <div className="text-sm text-slate-600">กำลังเตรียม LINE LIFF...</div>
-              </div>
-            ) : error ? (
-              <div className="space-y-4 rounded-[1.6rem] border border-rose-200 bg-rose-50 p-4 text-rose-700">
-                <div className="text-base font-black">เปิด LIFF ไม่สำเร็จ</div>
-                <div className="text-sm leading-6">{error}</div>
-                {!loggedIn ? <PrimaryButton onClick={login}>เข้าใช้งานผ่าน LINE</PrimaryButton> : null}
-              </div>
-            ) : (
-              <>
-                {step === "gate" && (
-                  <div className="space-y-4 text-center">
-                    <div className="rounded-[1.75rem] border border-white/80 bg-white p-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-                      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#ebfff0] text-[#18a645] shadow-sm">
-                        <HeartHandshake size={34} />
-                      </div>
-                      <div className="mt-4 text-2xl font-black tracking-tight text-slate-950">เพิ่มเพื่อน LINE OA</div>
-                      <div className="mt-2 text-sm leading-6 text-slate-600">ปลดล็อกสิทธิ์รับคูปองและเก็บไว้ใน LINE ของคุณ</div>
-                      <div className="mt-4 rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                        สถานะปัจจุบัน: <span className="font-bold text-slate-950">{isFriend ? "เพิ่มเพื่อนแล้ว" : "ยังไม่ได้เพิ่มเพื่อน"}</span>
-                      </div>
-                      {!isFriend ? (
-                        <a
-                          href={config?.addFriendUrl ?? "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={() => void logEvent("add_friend_click", { qrId: source.qrId ?? null }, "gate")}
-                          className="mt-4 inline-flex w-full items-center justify-center rounded-[1.35rem] bg-[#1bb249] px-5 py-3.5 text-base font-bold text-white shadow-[0_16px_30px_rgba(27,178,73,0.28)] transition hover:bg-[#11953b]"
-                        >
-                          เพิ่มเพื่อน
-                        </a>
-                      ) : null}
-                      <PrimaryButton className="mt-3" onClick={handleGateCheck} disabled={gateChecking || claiming}>
-                        {gateChecking ? "กำลังตรวจสอบ..." : isFriend ? "ไปต่อ" : "ฉันเพิ่มเพื่อนแล้ว"}
-                      </PrimaryButton>
-                      {gateMessage ? (
-                        <div className="mt-3 rounded-[1.2rem] border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
-                          {gateMessage}
+      <div className="mx-auto flex w-full max-w-md flex-col gap-4 pb-24">
+        {step === "landing" ? (
+          <LandingHero
+            configLoading={config === null}
+            campaignName={config?.campaignName ?? null}
+            benefitBullets={config?.benefitBullets ?? []}
+            rewardTeasers={config?.rewardTeasers ?? []}
+            onStart={handleStart}
+            starting={registering}
+            liffReady={ready}
+            loggedIn={loggedIn}
+            onLogin={login}
+            displayName={profile?.displayName ?? null}
+          />
+        ) : isGameMode ? null : stepKey ? (
+          <>
+            <StoryboardHeader current={boardStep} />
+            <PhoneFrame step={stepKey}>
+              {!ready ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                  <LoaderCircle className="animate-spin text-[#E8C994]" size={28} />
+                  <div className="text-sm text-[#C8C0A8]">กำลังเตรียม LINE LIFF...</div>
+                </div>
+              ) : error ? (
+                <div className="space-y-4 rounded-[1.6rem] border border-rose-300/40 bg-rose-500/10 p-4 text-rose-200">
+                  <div className="text-base font-black">เปิด LIFF ไม่สำเร็จ</div>
+                  <div className="text-sm leading-6">{error}</div>
+                  {!loggedIn ? <PrimaryButton onClick={login}>เข้าใช้งานผ่าน LINE</PrimaryButton> : null}
+                </div>
+              ) : (
+                <>
+                  {step === "gate" && (
+                    <div className="space-y-4 text-center">
+                      <div className="rounded-[1.75rem] border border-[#D4AF7A]/30 bg-[#0A4632]/70 p-5">
+                        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#D4AF7A]/15 text-[#E8C994]">
+                          <HeartHandshake size={34} />
                         </div>
-                      ) : null}
-                      {gateAttempts >= 2 && !isFriend ? (
-                        <SecondaryButton className="mt-3" onClick={handleGateBypass} disabled={claiming}>
-                          ยืนยันว่าเพิ่มแล้ว ดำเนินการต่อ
+                        <div className="font-pp-display mt-4 text-2xl font-semibold tracking-tight text-[#F5EFE0]">เพิ่มเพื่อน LINE OA</div>
+                        <div className="mt-2 text-sm leading-6 text-[#C8C0A8]">ปลดล็อกสิทธิ์รับคูปองและเก็บไว้ใน LINE ของคุณ</div>
+                        <div className="mt-4 rounded-[1.4rem] border border-[#D4AF7A]/25 bg-[#03261C] px-4 py-3 text-sm text-[#C8C0A8]">
+                          สถานะปัจจุบัน: <span className="font-bold text-[#F5EFE0]">{isFriend ? "เพิ่มเพื่อนแล้ว" : "ยังไม่ได้เพิ่มเพื่อน"}</span>
+                        </div>
+                        {!isFriend ? (
+                          <a
+                            href={config?.addFriendUrl ?? "#"}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => void logEvent("add_friend_click", { qrId: source.qrId ?? null }, "gate")}
+                            className="mt-4 inline-flex w-full items-center justify-center rounded-[1.35rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-3.5 text-base font-bold text-[#1A2520] shadow-[0_16px_30px_rgba(212,175,122,0.4)]"
+                          >
+                            เพิ่มเพื่อน
+                          </a>
+                        ) : null}
+                        <PrimaryButton className="mt-3" onClick={handleGateCheck} disabled={gateChecking || claiming}>
+                          {gateChecking ? "กำลังตรวจสอบ..." : isFriend ? "ไปต่อ" : "ฉันเพิ่มเพื่อนแล้ว"}
+                        </PrimaryButton>
+                        {gateMessage ? (
+                          <div className="mt-3 rounded-[1.2rem] border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-left text-sm text-amber-100">
+                            {gateMessage}
+                          </div>
+                        ) : null}
+                        {gateAttempts >= 2 && !isFriend ? (
+                          <SecondaryButton className="mt-3" onClick={handleGateBypass} disabled={claiming}>
+                            ยืนยันว่าเพิ่มแล้ว ดำเนินการต่อ
+                          </SecondaryButton>
+                        ) : null}
+                        <SecondaryButton className="mt-3" onClick={() => setStep(gateReturnStep)} disabled={claiming || gateChecking}>
+                          กลับไปหน้ารางวัล
                         </SecondaryButton>
-                      ) : null}
-                      <SecondaryButton className="mt-3" onClick={() => setStep(gateReturnStep)} disabled={claiming || gateChecking}>
-                        กลับไปหน้ารางวัล
-                      </SecondaryButton>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {step === "wallet" && reward && (
-                  <div className="space-y-4">
-                    <RewardTicketCard reward={reward} label={reward.status === "redeemed" ? "Coupon Redeemed" : "Coupon Claimed"} />
-                    <div className="rounded-[1.4rem] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-2xl bg-[#ebfff0] p-2 text-[#17a643]">
-                          <ShieldCheck size={18} />
-                        </div>
-                        <div>
-                          <div className="text-sm font-black text-slate-950">วิธีใช้สิทธิ์</div>
-                          <div className="mt-1 text-sm leading-6 text-slate-600">แสดงโค้ดนี้ให้พนักงานที่หน้าร้าน ลูกค้าไม่ต้องกด redeem เองในหน้านี้</div>
-                          {reward.expiresAt ? <div className="mt-2 text-xs text-slate-500">ใช้ได้ถึง {formatThaiDate(reward.expiresAt)}</div> : null}
+                  {step === "wallet" && reward && (
+                    <div className="space-y-4">
+                      <RewardTicketCard reward={reward} label={reward.status === "redeemed" ? "Coupon Redeemed" : "Coupon Claimed"} />
+                      <div className="rounded-[1.4rem] border border-[#D4AF7A]/25 bg-[#0A4632]/60 px-4 py-4">
+                        <div className="flex items-start gap-3">
+                          <div className="rounded-2xl bg-[#D4AF7A]/15 p-2 text-[#E8C994]"><ShieldCheck size={18} /></div>
+                          <div>
+                            <div className="text-sm font-black text-[#F5EFE0]">วิธีใช้สิทธิ์</div>
+                            <div className="mt-1 text-sm leading-6 text-[#C8C0A8]">แสดงโค้ดนี้ให้พนักงานที่หน้าร้าน ลูกค้าไม่ต้องกด redeem เองในหน้านี้</div>
+                            {reward.expiresAt ? <div className="mt-2 text-xs text-[#C8C0A8]/80">ใช้ได้ถึง {formatThaiDate(reward.expiresAt)}</div> : null}
+                          </div>
                         </div>
                       </div>
+                      <PrimaryButton onClick={handleFinishWallet}>เข้าใจแล้ว</PrimaryButton>
                     </div>
-                    <PrimaryButton onClick={handleFinishWallet}>เข้าใจแล้ว</PrimaryButton>
-                  </div>
-                )}
+                  )}
 
-                {step === "success" && reward && (
-                  <div className="space-y-4 text-center">
-                    <div className="rounded-[1.75rem] border border-white/80 bg-[linear-gradient(180deg,#d9f8e4_0%,#ffffff_100%)] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[#ecfff2] text-[#19a744]">
-                        <CheckCircle2 size={30} />
+                  {step === "success" && reward && (
+                    <div className="space-y-4 text-center">
+                      <div className="rounded-[1.75rem] border border-[#D4AF7A]/30 bg-[linear-gradient(180deg,#0F5A3D_0%,#063A2A_100%)] p-5">
+                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[#D4AF7A]/15 text-[#E8C994]">
+                          <CheckCircle2 size={30} />
+                        </div>
+                        <div className="font-pp-display mt-4 text-3xl font-semibold tracking-tight text-[#F5EFE0]">เรียบร้อย!</div>
+                        <p className="mt-2 text-sm leading-6 text-[#C8C0A8]">เก็บหน้านี้ไว้หรือแคปจอ แล้วแสดงโค้ดกับพนักงานเมื่อใช้สิทธิ์</p>
+                        <div className="mt-4 rounded-2xl border border-[#D4AF7A]/30 bg-[#03261C] px-4 py-3 font-mono text-sm font-bold tracking-[0.18em] text-[#F5EFE0]">
+                          {reward.title} · {reward.couponCode}
+                        </div>
                       </div>
-                      <div className="mt-4 text-3xl font-black tracking-tight text-slate-950">เรียบร้อย!</div>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">คุณได้รับสิทธิ์เรียบร้อยแล้ว เก็บหน้านี้ไว้หรือแคปจอ แล้วแสดงโค้ดกับพนักงานเมื่อใช้สิทธิ์</p>
-                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900">
-                        {reward.title} · {reward.couponCode}
-                      </div>
+                      <SecondaryButton onClick={() => setStep("landing")}>กลับหน้าแรก</SecondaryButton>
                     </div>
-                    <SecondaryButton onClick={() => setStep("landing")}>กลับหน้าแรก</SecondaryButton>
-                  </div>
-                )}
-              </>
-            )}
-          </PhoneFrame>
-        </>
-      )}
-    </div>
-    {isGameMode ? (
-      <GameOverlay
-        step={step as "shake" | "pick" | "reward"}
-        shaking={shaking}
-        shakeCompleted={shakeCompleted}
-        selectedBall={selectedBall}
-        drawing={drawing}
-        reward={reward}
-        isFriend={isFriend}
-        claiming={claiming}
-        sfxMuted={sfxMuted}
-        onToggleSfx={toggleSfx}
-        onShake={handleShake}
-        onGoToPick={goToPick}
-        onPickBall={(i) => void handlePickBall(i)}
-        onClaim={() => void handleClaim()}
-      />
-    ) : null}
+                  )}
+                </>
+              )}
+            </PhoneFrame>
+          </>
+        ) : null}
+      </div>
+      {isGameMode ? (
+        <GameOverlay
+          step={step as "play" | "reward"}
+          phase={playPhase}
+          setPhase={setPlayPhase}
+          selectedCapsule={selectedCapsule}
+          drawing={drawing}
+          reward={reward}
+          revealComplete={revealComplete}
+          isFriend={isFriend}
+          claiming={claiming}
+          sfxMuted={sfxMuted}
+          onToggleSfx={toggleSfx}
+          onSettled={handleSettled}
+          onPickCapsule={(i) => void handlePickCapsule(i)}
+          onRevealComplete={handleRevealComplete}
+          onClaim={() => void handleClaim()}
+        />
+      ) : null}
     </>
   );
 }
 
 function GameOverlay({
   step,
-  shaking,
-  shakeCompleted,
-  selectedBall,
+  phase,
+  setPhase,
+  selectedCapsule,
   drawing,
   reward,
+  revealComplete,
   isFriend,
   claiming,
   sfxMuted,
   onToggleSfx,
-  onShake,
-  onGoToPick,
-  onPickBall,
+  onSettled,
+  onPickCapsule,
+  onRevealComplete,
   onClaim,
 }: {
-  step: "shake" | "pick" | "reward";
-  shaking: boolean;
-  shakeCompleted: boolean;
-  selectedBall: number | null;
+  step: "play" | "reward";
+  phase: PlayPhase;
+  setPhase: (phase: PlayPhase) => void;
+  selectedCapsule: number | null;
   drawing: boolean;
   reward: CampaignReward | null;
+  revealComplete: boolean;
   isFriend: boolean;
   claiming: boolean;
   sfxMuted: boolean;
   onToggleSfx: () => void;
-  onShake: () => void;
-  onGoToPick: () => void;
-  onPickBall: (index: number) => void;
+  onSettled: () => void;
+  onPickCapsule: (index: number) => void;
+  onRevealComplete: () => void;
   onClaim: () => void;
 }) {
   const reduceMotion = useReducedMotion();
-  const stageIndex = step === "shake" ? 0 : step === "pick" ? 1 : 2;
-  const stageEn = step === "shake" ? "SHAKE" : step === "pick" ? "PICK" : "REVEAL";
+  const stageIndex = step === "play" ? 0 : 1;
+  const stageEn = step === "play" ? "PLAY" : "REVEAL";
 
   const stepPanelVariants = {
     initial: reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 },
@@ -706,22 +607,22 @@ function GameOverlay({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-hidden text-white"
-      style={{ background: "radial-gradient(ellipse at 50% 0%, #1d3b76 0%, #0c1a3f 55%, #030714 100%)" }}
+      className="fixed inset-0 z-50 overflow-hidden text-[#F5EFE0]"
+      style={{ background: "linear-gradient(180deg, #063A2A 0%, #0F5A3D 50%, #03261C 100%)" }}
     >
-      <div className="pp-stars pointer-events-none absolute inset-0 opacity-70" />
-      <div className="pp-sweep pointer-events-none absolute inset-0" />
+      <div className="pp-noise-overlay" />
+      <div className="pp-vignette-gold pointer-events-none absolute inset-0" />
 
       <div className="relative flex w-full flex-col" style={{ minHeight: "100dvh" }}>
         <header className="flex items-center justify-between px-5 pt-6">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur-md">
-              <Pill size={16} className="text-emerald-300" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-[#D4AF7A]/30 bg-[#063A2A]/80 backdrop-blur">
+              <Pill size={16} className="text-[#E8C994]" />
             </div>
             <div>
-              <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-300">Pharmacy+ Lucky Draw</div>
-              <div className="text-[11px] font-semibold text-white/70">
-                STAGE {stageIndex + 1}/3 · <span className="text-white">{stageEn}</span>
+              <div className="text-[9px] font-black uppercase tracking-[0.34em] text-[#E8C994]">Pharmacy+ · Apothecary</div>
+              <div className="text-[11px] font-semibold text-[#C8C0A8]">
+                STAGE {stageIndex + 1}/2 · <span className="text-[#F5EFE0]">{stageEn}</span>
               </div>
             </div>
           </div>
@@ -729,21 +630,21 @@ function GameOverlay({
             <button
               type="button"
               onClick={onToggleSfx}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white ring-1 ring-white/20 backdrop-blur-md transition hover:bg-white/15"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#D4AF7A]/30 bg-[#063A2A]/80 text-[#F5EFE0] backdrop-blur transition hover:bg-[#0A4632]"
               aria-label={sfxMuted ? "เปิดเสียง" : "ปิดเสียง"}
             >
               {sfxMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </button>
             <div className="flex items-center gap-1.5">
-              {[0, 1, 2].map((i) => (
+              {[0, 1].map((i) => (
                 <span
                   key={i}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
                     i < stageIndex
-                      ? "w-5 bg-emerald-400/70"
+                      ? "w-5 bg-[#D4AF7A]/70"
                       : i === stageIndex
-                        ? "w-7 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]"
-                        : "w-3 bg-white/20"
+                        ? "w-7 bg-[#E8C994] shadow-[0_0_12px_rgba(232,201,148,0.6)]"
+                        : "w-3 bg-[#F5EFE0]/15"
                   }`}
                 />
               ))}
@@ -760,17 +661,28 @@ function GameOverlay({
               initial="initial"
               animate="animate"
               exit="exit"
-              transition={{ duration: reduceMotion ? 0.16 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: reduceMotion ? 0.16 : 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="flex min-h-0 w-full flex-1 flex-col items-center justify-center"
             >
-              {step === "shake" ? (
-                <ShakeArena shaking={shaking} completed={shakeCompleted} onShake={onShake} onNext={onGoToPick} />
-              ) : null}
-              {step === "pick" ? (
-                <PickArena selectedBall={selectedBall} drawing={drawing} onPick={onPickBall} />
+              {step === "play" ? (
+                <PlayStage
+                  phase={phase}
+                  setPhase={setPhase}
+                  selectedCapsule={selectedCapsule}
+                  drawing={drawing}
+                  onSettled={onSettled}
+                  onPick={onPickCapsule}
+                />
               ) : null}
               {step === "reward" && reward ? (
-                <RewardArena reward={reward} isFriend={isFriend} onClaim={onClaim} claiming={claiming} />
+                <RewardStage
+                  reward={reward}
+                  revealComplete={revealComplete}
+                  isFriend={isFriend}
+                  onClaim={onClaim}
+                  claiming={claiming}
+                  onRevealComplete={onRevealComplete}
+                />
               ) : null}
             </motion.div>
           </AnimatePresence>
@@ -780,213 +692,227 @@ function GameOverlay({
   );
 }
 
-function GameButton({
-  children,
-  pulse = false,
-  className = "",
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { pulse?: boolean }) {
-  return (
-    <button
-      {...props}
-      className={`relative inline-flex w-full items-center justify-center gap-2.5 rounded-[1.6rem] bg-gradient-to-b from-[#3ae080] to-[#0b8f3d] px-8 py-4 text-base font-black uppercase tracking-[0.2em] text-white shadow-[0_18px_38px_rgba(14,140,60,0.45),inset_0_-5px_0_rgba(0,0,0,0.22),inset_0_2px_0_rgba(255,255,255,0.35)] transition-transform active:translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed ${pulse ? "pp-neon-ring" : ""} ${className}`}
-    >
-      <span className="pointer-events-none absolute inset-x-2 top-1 h-1/2 rounded-[1.3rem] bg-gradient-to-b from-white/30 to-white/0" />
-      <span className="relative z-[1] flex items-center gap-2">{children}</span>
-    </button>
-  );
-}
-
-function BigShakeJar({ shaking }: { shaking: boolean }) {
-  return (
-    <div className={`relative mx-auto aspect-[4/5] w-full max-w-[19rem] ${shaking ? "pp-shake" : ""}`}>
-      <div className="pointer-events-none absolute -inset-6 rounded-[3.5rem] bg-[radial-gradient(circle_at_50%_35%,rgba(94,204,255,0.4)_0%,rgba(94,204,255,0)_65%)] blur-xl" />
-      <div className="absolute inset-0 overflow-hidden rounded-[2.8rem] border-[6px] border-white/85 bg-[radial-gradient(circle_at_50%_20%,#ffffff_0%,#dff3ff_55%,#8bc7f2_100%)] shadow-[inset_0_0_40px_rgba(255,255,255,0.9),0_30px_55px_rgba(5,14,36,0.55)]">
-        <div className="pointer-events-none absolute inset-x-8 top-4 h-8 rounded-full bg-white/60 blur-[3px]" />
-        {SHAKE_BALLS.map((ball, index) => {
-          const layout = CLUSTER_LAYOUT[index % CLUSTER_LAYOUT.length];
-          return (
-            <Ball
-              key={index}
-              color={ball.color}
-              gloss={ball.gloss}
-              size="md"
-              style={{ left: layout.left, top: layout.top }}
-              className={shaking ? layout.spin : index % 2 === 0 ? "pp-float" : "pp-bob"}
-            />
-          );
-        })}
-      </div>
-      <div className="absolute inset-x-10 -bottom-2 flex h-11 items-center justify-center rounded-[1.3rem] bg-[linear-gradient(180deg,#ffe27a_0%,#e99b1a_100%)] text-[11px] font-black uppercase tracking-[0.3em] text-[#4a3100] shadow-[0_10px_20px_rgba(0,0,0,0.35),inset_0_2px_0_rgba(255,255,255,0.5)]">
-        Pharmacy+
-      </div>
-    </div>
-  );
-}
-
-function ShakeArena({
-  shaking,
-  completed,
-  onShake,
-  onNext,
+function PlayStage({
+  phase,
+  setPhase,
+  selectedCapsule,
+  drawing,
+  onSettled,
+  onPick,
 }: {
-  shaking: boolean;
-  completed: boolean;
-  onShake: () => void;
-  onNext: () => void;
+  phase: PlayPhase;
+  setPhase: (phase: PlayPhase) => void;
+  selectedCapsule: number | null;
+  drawing: boolean;
+  onSettled: () => void;
+  onPick: (index: number) => void;
 }) {
+  const rumbleRef = useRef<{ setIntensity: (v: number) => void; stop: () => void } | null>(null);
+  const holdStartRef = useRef<number | null>(null);
+  const intensityTimerRef = useRef<number | null>(null);
+
+  const startHold = useCallback(async () => {
+    if (phase !== "idle") return;
+    void unlockSfxFromUserGesture();
+    setPhase("shaking");
+    safeVibrate(20);
+    holdStartRef.current = Date.now();
+    rumbleRef.current = await startSustainedRumble();
+    if (intensityTimerRef.current) window.clearInterval(intensityTimerRef.current);
+    intensityTimerRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - (holdStartRef.current ?? Date.now());
+      const v = Math.min(1, elapsed / 2200);
+      rumbleRef.current?.setIntensity(v);
+      if (elapsed >= 2500) {
+        endHold();
+      }
+    }, 80);
+  }, [phase, setPhase]);
+
+  const endHold = useCallback(() => {
+    if (intensityTimerRef.current) {
+      window.clearInterval(intensityTimerRef.current);
+      intensityTimerRef.current = null;
+    }
+    rumbleRef.current?.stop();
+    rumbleRef.current = null;
+    holdStartRef.current = null;
+    safeVibrate([12, 8, 24]);
+    // brief slow-mo before settle
+    window.setTimeout(() => onSettled(), 380);
+  }, [onSettled]);
+
+  const releaseHold = useCallback(() => {
+    if (phase !== "shaking") return;
+    endHold();
+  }, [phase, endHold]);
+
+  useEffect(() => () => {
+    if (intensityTimerRef.current) window.clearInterval(intensityTimerRef.current);
+    rumbleRef.current?.stop();
+  }, []);
+
+  const isInteracting = phase === "idle" || phase === "shaking";
+  const slowMo = phase === "shaking" ? "transition-transform duration-150" : "transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]";
+  const layout = phase === "settled" || phase === "drawing" ? PICK_LAYOUT : CLUSTER_LAYOUT;
+
+  const caption = phase === "idle"
+    ? "กดค้างเพื่อเขย่า"
+    : phase === "shaking"
+      ? "ค้างไว้... รู้สึกถึงพลังไหม?"
+      : phase === "settled"
+        ? "แตะลูกที่ใช่"
+        : "เปิดรางวัลของคุณ...";
+
+  const headline = phase === "idle"
+    ? "ปลุกโชคของคุณ"
+    : phase === "shaking"
+      ? "กำลังเขย่า..."
+      : phase === "settled"
+        ? "เลือก 1 ลูก"
+        : "ลุ้นรางวัล";
+
   return (
     <>
       <div className="text-center">
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.3em] text-emerald-200 ring-1 ring-emerald-300/30">
-          <Sparkles size={10} /> Step 1 of 3
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF7A]/40 bg-[#063A2A]/60 px-3 py-1 text-[10px] font-black uppercase tracking-[0.32em] text-[#E8C994] backdrop-blur">
+          <Sparkles size={10} /> Apothecary Draw
         </div>
-        <h1 className="mt-2 text-[2.1rem] font-black leading-none tracking-tight drop-shadow-[0_4px_12px_rgba(52,211,153,0.25)]">
-          {shaking ? "กำลังเขย่า..." : completed ? "พร้อมเลือกแล้ว!" : "เขย่าจับโชค"}
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-white/70">
-          {shaking
-            ? "บอลกำลังกระเด้งในเครื่อง อย่าเพิ่งปล่อย!"
-            : completed
-              ? "ไปแตะเลือกลูกโชคดีได้เลย"
-              : "แตะปุ่มด้านล่างเพื่อคลุกลูกบอล"}
-        </p>
+        <h1 className="font-pp-display mt-3 text-[2.4rem] font-semibold leading-none tracking-tight text-[#F5EFE0]">{headline}</h1>
+        <p className="mt-2 text-sm leading-6 text-[#C8C0A8]">{caption}</p>
       </div>
 
+      {/* Glass apothecary jar */}
       <div className="my-6 flex w-full flex-1 items-center justify-center">
-        <BigShakeJar shaking={shaking} />
+        <div className={`relative aspect-[4/5] w-full max-w-[20rem] ${phase === "shaking" ? "pp-shake" : ""}`}>
+          <div className="pointer-events-none absolute -inset-6 rounded-[3.5rem] bg-[radial-gradient(circle_at_50%_35%,rgba(232,201,148,0.35)_0%,rgba(232,201,148,0)_65%)] blur-xl" />
+          <div className={`relative h-full w-full overflow-hidden rounded-[2.6rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,rgba(245,239,224,0.08)_0%,rgba(245,239,224,0.02)_100%)] shadow-[inset_0_0_40px_rgba(232,201,148,0.15),0_30px_55px_rgba(3,18,12,0.6)] ${phase === "shaking" ? "pp-edge-glow-strong" : "pp-edge-glow"}`}>
+            <div className="pointer-events-none absolute inset-x-8 top-4 h-8 rounded-full bg-[#F5EFE0]/15 blur-[3px]" />
+            <div className="pointer-events-none absolute inset-x-12 bottom-2 h-1 rounded-full bg-[#D4AF7A]/30 blur-[1px]" />
+
+            {CAPSULE_LIST.map((tone, index) => {
+              const pos = layout[index];
+              const isSelected = selectedCapsule === index;
+              const isOther = selectedCapsule !== null && !isSelected;
+              const breatheClass = phase === "settled" && selectedCapsule === null
+                ? `pp-breathe-delay-${(index % 4) || ""}`
+                : "";
+              const stateClass = phase === "drawing"
+                ? isSelected
+                  ? "pp-rise-rotate"
+                  : "pp-dust-away"
+                : "";
+              return (
+                <motion.div
+                  key={tone}
+                  layout
+                  layoutId={`capsule-${tone}`}
+                  transition={{ duration: phase === "shaking" ? 0.2 : 0.55, ease: [0.2, 0.8, 0.2, 1] }}
+                  className={`absolute ${slowMo} ${stateClass}`}
+                  style={{ left: pos.left, top: pos.top, width: phase === "settled" ? "22%" : "20%" }}
+                >
+                  <Capsule
+                    tone={tone}
+                    size={phase === "shaking" ? "md" : "lg"}
+                    selected={isSelected}
+                    dim={isOther && phase === "settled"}
+                    onClick={phase === "settled" ? () => onPick(index) : undefined}
+                    className={breatheClass}
+                    style={{ position: "static" }}
+                  />
+                </motion.div>
+              );
+            })}
+          </div>
+          <div className="absolute inset-x-10 -bottom-2 flex h-11 items-center justify-center rounded-[1.3rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] text-[11px] font-black uppercase tracking-[0.32em] text-[#1A2520] shadow-[0_10px_20px_rgba(3,18,12,0.4),inset_0_2px_0_rgba(255,255,255,0.55)]">
+            Pharmacy+
+          </div>
+        </div>
       </div>
 
       <div className="w-full max-w-xs">
-        {completed ? (
-          <GameButton onClick={onNext}>
-            <Pill size={18} />
-            <span>เลือกลูกโชคดี</span>
-          </GameButton>
-        ) : (
-          <GameButton onClick={onShake} disabled={shaking} pulse={!shaking}>
+        {isInteracting ? (
+          <button
+            type="button"
+            onPointerDown={(e) => { e.preventDefault(); void startHold(); }}
+            onPointerUp={releaseHold}
+            onPointerLeave={releaseHold}
+            onPointerCancel={releaseHold}
+            disabled={drawing}
+            className={`relative inline-flex w-full items-center justify-center gap-2.5 rounded-[1.6rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-8 py-4 text-base font-black uppercase tracking-[0.24em] text-[#1A2520] shadow-[0_18px_38px_rgba(212,175,122,0.4),inset_0_-5px_0_rgba(0,0,0,0.18),inset_0_2px_0_rgba(255,255,255,0.55)] transition-transform select-none ${phase === "shaking" ? "scale-[0.97]" : "active:translate-y-0.5"}`}
+          >
+            <span className="pointer-events-none absolute inset-x-2 top-1 h-1/2 rounded-[1.3rem] bg-gradient-to-b from-white/35 to-white/0" />
             <Smartphone size={18} />
-            <span>{shaking ? "กำลังเขย่า" : "เขย่าเลย"}</span>
-          </GameButton>
-        )}
-      </div>
-    </>
-  );
-}
-
-function PickArena({
-  selectedBall,
-  drawing,
-  onPick,
-}: {
-  selectedBall: number | null;
-  drawing: boolean;
-  onPick: (index: number) => void;
-}) {
-  return (
-    <>
-      <div className="text-center">
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.3em] text-emerald-200 ring-1 ring-emerald-300/30">
-          <Sparkles size={10} /> Step 2 of 3
-        </div>
-        <h1 className="mt-2 text-[2.1rem] font-black leading-none tracking-tight">
-          {drawing ? "กำลังเปิดรางวัล..." : "แตะเลือก 1 ลูก"}
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-white/70">
-          {drawing ? "เสี่ยงทายของคุณกำลังเปิดออก" : "เลือกลูกบอลที่รู้สึกใช่ แล้วเปิดรางวัลทันที"}
-        </p>
-      </div>
-
-      <div className="my-4 flex w-full flex-1 items-center justify-center">
-        <div className="relative h-80 w-full max-w-[22rem]">
-          <div className="pointer-events-none absolute inset-0 -m-6 rounded-[3rem] bg-[radial-gradient(ellipse_at_50%_50%,rgba(94,211,155,0.22)_0%,rgba(94,211,155,0)_70%)] blur-md" />
-          {BALLS.map((ball, index) => (
-            <Ball
-              key={index}
-              color={ball.color}
-              gloss={ball.gloss}
-              size="lg"
-              selected={selectedBall === index}
-              disabled={drawing}
-              onClick={() => onPick(index)}
-              style={PICK_LAYOUT[index]}
-              className={
-                selectedBall === null && !drawing
-                  ? "pp-float"
-                  : selectedBall === index
-                    ? drawing
-                      ? "pp-pop-await scale-110"
-                      : "pp-pop"
-                    : "opacity-40"
-              }
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="flex h-10 items-center justify-center">
-        {drawing ? (
-          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-5 py-2 ring-1 ring-emerald-400/40 backdrop-blur">
-            <LoaderCircle className="animate-spin text-emerald-300" size={16} />
-            <div className="text-sm font-semibold text-emerald-100">กำลังเปิดรางวัล...</div>
-          </div>
+            <span className="relative">{phase === "shaking" ? "ค้างไว้..." : "กดค้างเพื่อเขย่า"}</span>
+          </button>
+        ) : phase === "settled" ? (
+          <div className="text-center text-xs text-[#C8C0A8]">— แตะแคปซูลเพื่อเปิดรางวัล —</div>
         ) : (
-          <div className="text-xs text-white/50">แตะ 1 ลูกเพื่อเปิดรางวัล</div>
+          <div className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#D4AF7A]/40 bg-[#063A2A]/60 px-5 py-3 backdrop-blur">
+            <LoaderCircle className="animate-spin text-[#E8C994]" size={16} />
+            <div className="text-sm font-semibold text-[#F5EFE0]">กำลังเปิดรางวัล...</div>
+          </div>
         )}
       </div>
     </>
   );
 }
 
-function RewardArena({
+function RewardStage({
   reward,
+  revealComplete,
   isFriend,
   onClaim,
   claiming,
+  onRevealComplete,
 }: {
   reward: CampaignReward;
+  revealComplete: boolean;
   isFriend: boolean;
   onClaim: () => void;
   claiming: boolean;
+  onRevealComplete: () => void;
 }) {
-  useEffect(() => {
-    confetti({
-      particleCount: 120,
-      spread: 100,
-      origin: { y: 0.42 },
-      colors: ["#ffd64a", "#ff6b6b", "#4ea7ff", "#58c247", "#ff7ec3"],
-    });
-  }, []);
+  const tone = rewardToneToCapsule(reward.tone);
+  const amount = rewardAmount(reward.title);
+  const tier = classifyReward(reward.title);
+  const isPremium = tier === "premium";
+
+  useEffect(() => { void playReveal(); }, []);
 
   return (
     <>
-      <div className="pp-flash pointer-events-none absolute inset-0 bg-white" />
       <div className="text-center">
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-300/15 px-3 py-1 text-[11px] font-black uppercase tracking-[0.3em] text-amber-200 ring-1 ring-amber-300/40">
-          <Trophy size={12} /> You win!
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF7A]/45 bg-[#063A2A]/70 px-3 py-1 text-[11px] font-black uppercase tracking-[0.34em] text-[#E8C994] backdrop-blur">
+          <Trophy size={12} /> {revealComplete ? "Your Reward" : "Opening..."}
         </div>
-        <h1 className="mt-3 text-[2.3rem] font-black leading-none tracking-tight drop-shadow-[0_4px_12px_rgba(255,213,74,0.35)]">
-          {reward.title}
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-white/75">{reward.detail}</p>
       </div>
 
       <div className="my-5 flex flex-1 items-center justify-center">
-        <div className="relative">
-          <div className="pointer-events-none absolute -inset-16 rounded-full bg-[conic-gradient(from_0deg,rgba(255,213,94,0.35),rgba(255,107,107,0.3),rgba(94,188,255,0.3),rgba(94,247,168,0.35),rgba(255,213,94,0.35))] blur-2xl pp-orbit" />
-          <div className="relative">
-            <RewardCapsule reward={reward} />
-          </div>
-        </div>
+        <RewardReveal
+          capsuleTone={tone}
+          amount={amount}
+          isPremium={isPremium}
+          rewardTitle={reward.title}
+          rewardDetail={reward.detail}
+          onComplete={onRevealComplete}
+          onGlassCrack={() => void playGlassCrack()}
+        />
       </div>
 
       <div className="w-full max-w-xs space-y-3">
-        <GameButton onClick={onClaim} disabled={claiming}>
+        <button
+          type="button"
+          onClick={onClaim}
+          disabled={!revealComplete || claiming}
+          className="relative inline-flex w-full items-center justify-center gap-2.5 rounded-[1.6rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-8 py-4 text-base font-black uppercase tracking-[0.22em] text-[#1A2520] shadow-[0_18px_38px_rgba(212,175,122,0.45),inset_0_-5px_0_rgba(0,0,0,0.2),inset_0_2px_0_rgba(255,255,255,0.55)] transition active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="pointer-events-none absolute inset-x-2 top-1 h-1/2 rounded-[1.3rem] bg-gradient-to-b from-white/30 to-white/0" />
           <Ticket size={18} />
-          <span>{claiming ? "กำลังบันทึก..." : "รับสิทธิ์ผ่าน LINE"}</span>
-        </GameButton>
+          <span className="relative">{claiming ? "กำลังบันทึก..." : "รับสิทธิ์ผ่าน LINE"}</span>
+        </button>
         {!isFriend ? (
-          <div className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-center text-xs leading-5 text-amber-100">
+          <div className="rounded-2xl border border-[#D4AF7A]/30 bg-[#063A2A]/70 px-4 py-2.5 text-center text-xs leading-5 text-[#E8C994]">
             ต้องเพิ่มเพื่อน LINE OA เพื่อปลดล็อกคูปอง
           </div>
         ) : null}
@@ -1033,160 +959,151 @@ function LandingHero({
 
   return (
     <div className="space-y-5">
-      <section className="overflow-hidden rounded-[2.2rem] bg-[linear-gradient(180deg,#41c07b_0%,#0f7a43_100%)] p-5 pb-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.2)]">
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white ring-1 ring-white/30 backdrop-blur">
-          <Sparkles size={12} /> Pharmacy+ Lucky Draw
-        </div>
-        <h1 className="mt-3 text-[2.8rem] font-black leading-[1.02] tracking-tight drop-shadow-[0_4px_0_rgba(11,84,42,0.25)]">
-          เขย่าบอล<span className="text-[#ffe1ec]">ลุ้นโชค</span>
-        </h1>
-        {configLoading ? (
-          <div className="pp-landing-skeleton mt-2 h-4 w-48 max-w-full animate-pulse rounded-full bg-white/25" aria-hidden />
-        ) : campaignName ? (
-          <p className="mt-2 text-sm font-bold leading-snug text-white/90">{campaignName}</p>
-        ) : null}
-        <p className="mt-2 text-sm leading-6 text-white/90">เขย่า 1 ครั้ง แตะเลือก 1 ลูก แล้วรับรางวัลเลย</p>
-        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">ใช้เวลาไม่ถึง 1 นาที · 3 ขั้น</p>
-
-        {liffReady && loggedIn && displayName ? (
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur">
-            เล่นในชื่อ <span className="font-black">{displayName}</span>
+      <section className="relative overflow-hidden rounded-[2.4rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,#0F5A3D_0%,#063A2A_60%,#03261C_100%)] p-6 pb-7 text-[#F5EFE0] shadow-[0_30px_80px_rgba(3,18,12,0.55)]">
+        <div className="pp-noise-overlay" />
+        <div className="pp-vignette-gold pointer-events-none absolute inset-0" />
+        <div className="relative">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF7A]/50 bg-[#03261C]/60 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.28em] text-[#E8C994] backdrop-blur">
+            <Sparkles size={12} /> Apothecary Draw
           </div>
-        ) : null}
+          <h1 className="font-pp-display mt-3 text-[3rem] font-semibold leading-[1.02] tracking-tight">
+            เขย่าโชค <span className="pp-shimmer-text font-semibold">ลุ้นรางวัล</span>
+          </h1>
+          {configLoading ? (
+            <div className="mt-2 h-4 w-48 max-w-full animate-pulse rounded-full bg-[#F5EFE0]/15" aria-hidden />
+          ) : campaignName ? (
+            <p className="mt-2 text-sm font-semibold leading-snug text-[#E8C994]">{campaignName}</p>
+          ) : null}
+          <p className="mt-2 text-sm leading-6 text-[#C8C0A8]">เขย่าครั้งเดียว · แตะ 1 ลูก · รับรางวัลทันที</p>
+          <div className="pp-gold-divider mt-4" />
 
-        {configLoading ? (
-          <div
-            className="relative mx-auto mt-5 block h-72 w-full select-none"
-            aria-hidden
-          >
-            <div className="pp-landing-skeleton mx-auto h-full w-[15rem] animate-pulse rounded-[2.4rem] bg-white/20 ring-1 ring-white/25" />
-          </div>
-        ) : (
+          {liffReady && loggedIn && displayName ? (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#D4AF7A]/40 bg-[#03261C]/60 px-3 py-1.5 text-xs font-semibold text-[#F5EFE0] backdrop-blur">
+              เล่นในชื่อ <span className="font-pp-display text-base font-semibold text-[#E8C994]">{displayName}</span>
+            </div>
+          ) : null}
+
+          {/* Capsule preview */}
           <div
             role="button"
             tabIndex={0}
             onClick={triggerPreview}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                triggerPreview();
-              }
-            }}
-            aria-label="ลองเขย่าลูกบอล"
-            className="relative mx-auto mt-5 block h-72 w-full cursor-pointer select-none"
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); triggerPreview(); } }}
+            aria-label="ลองเขย่าแคปซูล"
+            className="relative mx-auto mt-6 block h-72 w-full cursor-pointer select-none"
           >
-            <div className={`relative mx-auto h-full w-[15rem] ${previewShaking ? "pp-shake" : ""}`}>
-              <div className="absolute inset-x-2 top-0 h-20 rounded-t-[5rem] border-x-[6px] border-t-[6px] border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(221,247,255,0.92)_100%)]" />
-              <div className="absolute inset-x-2 top-14 bottom-12 overflow-hidden rounded-[2.4rem] border-[6px] border-white/90 bg-[radial-gradient(circle_at_50%_25%,#ffffff_0%,#e6f5ff_55%,#a7dcff_100%)] shadow-[inset_0_0_25px_rgba(255,255,255,0.9),0_22px_32px_rgba(15,23,42,0.18)]">
-                <div className="pointer-events-none absolute inset-x-4 top-3 h-6 rounded-full bg-white/50 blur-[2px]" />
-                {SHAKE_BALLS.slice(0, 10).map((ball, index) => {
+            <div className={`relative mx-auto h-full w-[16rem] ${previewShaking ? "pp-shake" : ""}`}>
+              <div className="absolute inset-x-2 top-2 h-16 rounded-t-[3.5rem] border-x border-t border-[#D4AF7A]/40 bg-[linear-gradient(180deg,rgba(245,239,224,0.18)_0%,rgba(245,239,224,0.04)_100%)]" />
+              <div className={`absolute inset-x-2 top-12 bottom-12 overflow-hidden rounded-[2.4rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,rgba(245,239,224,0.08)_0%,rgba(245,239,224,0.02)_100%)] ${previewShaking ? "pp-edge-glow-strong" : "pp-edge-glow"}`}>
+                <div className="pointer-events-none absolute inset-x-4 top-3 h-6 rounded-full bg-[#F5EFE0]/15 blur-[2px]" />
+                {CAPSULE_LIST.slice(0, 6).map((tone, index) => {
                   const layout = CLUSTER_LAYOUT[index % CLUSTER_LAYOUT.length];
                   return (
-                    <Ball
-                      key={index}
-                      color={ball.color}
-                      gloss={ball.gloss}
-                      size="md"
+                    <Capsule
+                      key={tone}
+                      tone={tone}
+                      size="sm"
                       style={{ left: layout.left, top: layout.top }}
-                      className={previewShaking ? layout.spin : index % 2 === 0 ? "pp-float" : "pp-bob"}
+                      className={previewShaking ? "" : index % 2 === 0 ? "pp-float" : "pp-bob"}
                     />
                   );
                 })}
               </div>
-              <div className="absolute inset-x-6 bottom-0 flex h-14 items-center justify-center rounded-b-[1.8rem] bg-[linear-gradient(180deg,#ffd64a_0%,#f39a1d_100%)] text-sm font-black uppercase tracking-[0.22em] text-[#5a3a00] shadow-[0_10px_20px_rgba(0,0,0,0.18)]">
+              <div className="absolute inset-x-6 bottom-0 flex h-12 items-center justify-center rounded-b-[1.6rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] text-xs font-black uppercase tracking-[0.32em] text-[#1A2520] shadow-[0_10px_20px_rgba(3,18,12,0.4),inset_0_2px_0_rgba(255,255,255,0.55)]">
                 Pharmacy+
               </div>
             </div>
           </div>
-        )}
 
-        {configLoading ? (
-          <ul className="mt-4 space-y-2" aria-hidden>
-            {[0, 1, 2].map((i) => (
-              <li key={i} className="pp-landing-skeleton flex items-center gap-2 animate-pulse">
-                <span className="h-5 w-5 shrink-0 rounded-full bg-white/25" />
-                <span className="h-3 flex-1 rounded-full bg-white/20" />
-              </li>
-            ))}
-          </ul>
-        ) : benefitBullets.length ? (
-          <ul className="mt-4 space-y-2">
-            {benefitBullets.map((line) => (
-              <li key={line} className="flex items-start gap-2 text-sm font-semibold leading-snug text-white/95">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#b8ffd0]" aria-hidden />
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+          {configLoading ? (
+            <ul className="mt-4 space-y-2" aria-hidden>
+              {[0, 1, 2].map((i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="h-5 w-5 shrink-0 rounded-full bg-[#F5EFE0]/15 animate-pulse" />
+                  <span className="h-3 flex-1 rounded-full bg-[#F5EFE0]/10 animate-pulse" />
+                </li>
+              ))}
+            </ul>
+          ) : benefitBullets.length ? (
+            <ul className="mt-4 space-y-2">
+              {benefitBullets.map((line) => (
+                <li key={line} className="flex items-start gap-2 text-sm font-semibold leading-snug text-[#F5EFE0]">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#E8C994]" aria-hidden />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
-        {!liffReady ? (
-          <button
-            type="button"
-            disabled
-            className="mt-3 inline-flex w-full cursor-wait items-center justify-center gap-2 rounded-[1.4rem] bg-white/90 px-5 py-4 text-lg font-black text-[#0f7a43] opacity-80 shadow-[0_18px_30px_rgba(15,23,42,0.18)]"
-          >
-            <LoaderCircle className="animate-spin" size={20} /> กำลังเตรียม LINE...
-          </button>
-        ) : !loggedIn ? (
-          <button
-            type="button"
-            onClick={onLogin}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-white px-5 py-4 text-lg font-black text-[#0f7a43] shadow-[0_18px_30px_rgba(15,23,42,0.18)] transition hover:bg-[#f4fff8]"
-          >
-            <LogIn size={20} /> เข้าใช้งานผ่าน LINE
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onStart}
-            disabled={startDisabled}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-white px-5 py-4 text-lg font-black text-[#0f7a43] shadow-[0_18px_30px_rgba(15,23,42,0.18)] transition hover:bg-[#f4fff8] disabled:opacity-60"
-          >
-            {starting ? (
-              <>
-                <LoaderCircle className="animate-spin" size={20} /> กำลังเริ่ม...
-              </>
-            ) : (
-              <>
-                <Sparkles size={20} /> เริ่มเล่นเลย
-              </>
-            )}
-          </button>
-        )}
-
-        {!liffReady ? (
-          <p className="mt-2 text-center text-[11px] text-white/80">กำลังโหลด LINE LIFF เพื่อเชื่อมต่อบัญชีของคุณ</p>
-        ) : !loggedIn ? (
-          <p className="mt-2 text-center text-[11px] text-white/85">เข้าสู่ระบบ LINE เพื่อเริ่มเล่นและบันทึกสิทธิ์ของคุณ</p>
-        ) : !displayName ? (
-          <div className="mt-2 space-y-2 text-center">
-            <p className="text-[11px] text-white/85">รอดึงชื่อจากโปรไฟล์ LINE สักครู่...</p>
+          {!liffReady ? (
+            <button
+              type="button"
+              disabled
+              className="mt-5 inline-flex w-full cursor-wait items-center justify-center gap-2 rounded-[1.4rem] bg-[#F5EFE0]/10 px-5 py-4 text-base font-bold text-[#F5EFE0] opacity-80"
+            >
+              <LoaderCircle className="animate-spin" size={20} /> กำลังเตรียม LINE...
+            </button>
+          ) : !loggedIn ? (
             <button
               type="button"
               onClick={onLogin}
-              className="text-xs font-bold text-[#e8ffd0] underline decoration-white/40 underline-offset-2 hover:text-white"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.18em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4)]"
             >
-              ลองเข้าสู่ระบบใหม่
+              <LogIn size={20} /> เข้าใช้งานผ่าน LINE
             </button>
-          </div>
-        ) : null}
+          ) : (
+            <button
+              type="button"
+              onClick={onStart}
+              disabled={startDisabled}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.22em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4),inset_0_-4px_0_rgba(0,0,0,0.18),inset_0_2px_0_rgba(255,255,255,0.55)] transition hover:brightness-105 disabled:opacity-60"
+            >
+              {starting ? (
+                <>
+                  <LoaderCircle className="animate-spin" size={20} /> กำลังเริ่ม...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={20} /> เริ่มเล่นเลย
+                </>
+              )}
+            </button>
+          )}
+
+          {!liffReady ? (
+            <p className="mt-2 text-center text-[11px] text-[#C8C0A8]">กำลังโหลด LINE LIFF เพื่อเชื่อมต่อบัญชีของคุณ</p>
+          ) : !loggedIn ? (
+            <p className="mt-2 text-center text-[11px] text-[#C8C0A8]">เข้าสู่ระบบ LINE เพื่อเริ่มเล่นและบันทึกสิทธิ์</p>
+          ) : !displayName ? (
+            <div className="mt-2 space-y-2 text-center">
+              <p className="text-[11px] text-[#C8C0A8]">รอดึงชื่อจากโปรไฟล์ LINE สักครู่...</p>
+              <button
+                type="button"
+                onClick={onLogin}
+                className="text-xs font-bold text-[#E8C994] underline decoration-[#D4AF7A]/40 underline-offset-2 hover:text-[#F5EFE0]"
+              >
+                ลองเข้าสู่ระบบใหม่
+              </button>
+            </div>
+          ) : null}
+        </div>
       </section>
 
-      <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-        <div className="text-lg font-black text-slate-950">วิธีเล่น</div>
-        <div className="mt-3 divide-y divide-slate-100">
+      <section className="rounded-[1.8rem] border border-[#D4AF7A]/30 bg-[#0A4632]/60 p-5 backdrop-blur-md">
+        <div className="font-pp-display text-xl font-semibold text-[#F5EFE0]">วิธีเล่น</div>
+        <div className="pp-gold-divider mt-2" />
+        <div className="mt-3 divide-y divide-[#D4AF7A]/15">
           {BOARD_STEPS.map(({ title, description, icon: Icon }, index) => (
             <div key={title} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-              <div className="relative flex h-12 w-12 flex-none items-center justify-center rounded-2xl bg-[#ebfff0] text-[#0f7a43]">
+              <div className="relative flex h-12 w-12 flex-none items-center justify-center rounded-2xl bg-[#D4AF7A]/15 text-[#E8C994] ring-1 ring-[#D4AF7A]/30">
                 <Icon size={20} />
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#0f7a43] text-[10px] font-black text-white shadow-sm">
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[linear-gradient(180deg,#E8C994,#9C7A3F)] text-[10px] font-black text-[#1A2520]">
                   {index + 1}
                 </span>
               </div>
               <div className="min-w-0 pt-0.5">
-                <div className="text-sm font-black text-slate-950">{title}</div>
-                <div className="mt-0.5 text-sm leading-6 text-slate-600">{description}</div>
+                <div className="text-sm font-black text-[#F5EFE0]">{title}</div>
+                <div className="mt-0.5 text-sm leading-6 text-[#C8C0A8]">{description}</div>
               </div>
             </div>
           ))}
@@ -1194,27 +1111,25 @@ function LandingHero({
       </section>
 
       {configLoading ? (
-        <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]" aria-hidden>
-          <div className="pp-landing-skeleton h-5 w-32 animate-pulse rounded-lg bg-slate-200" />
-          <div className="pp-reward-scroll mt-3">
+        <section className="rounded-[1.8rem] border border-[#D4AF7A]/30 bg-[#0A4632]/60 p-5 backdrop-blur-md" aria-hidden>
+          <div className="h-5 w-32 animate-pulse rounded-lg bg-[#F5EFE0]/15" />
+          <div className="mt-3 flex gap-2 overflow-hidden">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="pp-reward-chip pp-landing-skeleton h-10 w-40 animate-pulse rounded-full bg-slate-100" />
+              <div key={i} className="h-10 w-40 shrink-0 animate-pulse rounded-full bg-[#F5EFE0]/10" />
             ))}
           </div>
         </section>
       ) : rewardTeasers.length ? (
-        <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+        <section className="rounded-[1.8rem] border border-[#D4AF7A]/30 bg-[#0A4632]/60 p-5 backdrop-blur-md">
           <div className="flex items-center gap-2">
-            <div className="rounded-xl bg-[#ebfff0] p-1.5 text-[#0f7a43]">
-              <Gift size={14} />
-            </div>
-            <div className="text-lg font-black text-slate-950">ของรางวัล</div>
+            <div className="rounded-xl bg-[#D4AF7A]/15 p-1.5 text-[#E8C994] ring-1 ring-[#D4AF7A]/30"><Gift size={14} /></div>
+            <div className="font-pp-display text-xl font-semibold text-[#F5EFE0]">ของรางวัล</div>
           </div>
           <div className="pp-reward-scroll mt-3">
             {rewardTeasers.map((item) => (
               <div
                 key={item}
-                className="pp-reward-chip rounded-full border border-emerald-100 bg-gradient-to-r from-[#ecfdf5] to-white px-4 py-2.5 text-sm font-bold text-slate-900 shadow-sm ring-1 ring-emerald-500/10"
+                className="pp-reward-chip rounded-full border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,rgba(245,239,224,0.08),rgba(245,239,224,0.02))] px-4 py-2.5 text-sm font-bold text-[#F5EFE0]"
               >
                 {item}
               </div>
@@ -1225,3 +1140,6 @@ function LandingHero({
     </div>
   );
 }
+
+// helper kept around for backwards-compat with previous CSS prop type (no-op)
+export type { CSSProperties };
