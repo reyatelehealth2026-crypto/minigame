@@ -357,9 +357,9 @@ export default function PharmacyPlusPage() {
   );
 
   useEffect(() => {
-    if (step !== "gate" || !ready) return;
+    if (step !== "gate" || !ready || !loggedIn) return;
     void refreshFriendship();
-  }, [step, ready, refreshFriendship]);
+  }, [step, ready, loggedIn, refreshFriendship]);
 
   useEffect(() => {
     const stepEventMap: Partial<Record<Step, CampaignEventName>> = {
