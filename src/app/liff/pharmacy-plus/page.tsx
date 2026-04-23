@@ -43,7 +43,7 @@ import {
   type CampaignEventName,
   type CampaignReward,
 } from "@/lib/pharmacy-plus";
-import { Capsule, CAPSULE_TONES, CapsuleSvg, type CapsuleTone } from "@/components/pharmacy/Capsule";
+import { Capsule, CAPSULE_TONES, type CapsuleTone } from "@/components/pharmacy/Capsule";
 import { RewardReveal } from "@/components/pharmacy/RewardReveal";
 import { classifyReward } from "@/lib/pharmacy-plus-theme";
 
@@ -58,28 +58,18 @@ const BOARD_STEPS = [
 
 const BOARD_KEYS = BOARD_STEPS.map((item) => item.key) as readonly Step[];
 
-const CAPSULE_LIST: readonly CapsuleTone[] = CAPSULE_TONES;
+const CAPSULE_LIST: readonly CapsuleTone[] = [CAPSULE_TONES[2], CAPSULE_TONES[0], CAPSULE_TONES[4]];
 
 const CLUSTER_LAYOUT = [
-  { left: "8%", top: "62%" },
-  { left: "26%", top: "44%" },
-  { left: "44%", top: "28%" },
-  { left: "60%", top: "42%" },
-  { left: "36%", top: "54%" },
-  { left: "16%", top: "30%" },
-  { left: "54%", top: "60%" },
-  { left: "30%", top: "70%" },
+  { left: "16%", top: "46%" },
+  { left: "42%", top: "18%" },
+  { left: "66%", top: "46%" },
 ] as const;
 
 const PICK_LAYOUT = [
-  { left: "8%", top: "8%" },
-  { left: "44%", top: "4%" },
-  { left: "70%", top: "20%" },
-  { left: "12%", top: "36%" },
-  { left: "44%", top: "32%" },
-  { left: "70%", top: "52%" },
-  { left: "26%", top: "60%" },
-  { left: "56%", top: "70%" },
+  { left: "14%", top: "36%" },
+  { left: "42%", top: "18%" },
+  { left: "68%", top: "36%" },
 ] as const;
 
 const STEP_COPY: Record<Exclude<Step, "play">, { eyebrow: string; title: string; description: string }> = {
@@ -711,6 +701,19 @@ function PlayStage({
   const holdStartRef = useRef<number | null>(null);
   const intensityTimerRef = useRef<number | null>(null);
 
+  const endHold = useCallback(() => {
+    if (intensityTimerRef.current) {
+      window.clearInterval(intensityTimerRef.current);
+      intensityTimerRef.current = null;
+    }
+    rumbleRef.current?.stop();
+    rumbleRef.current = null;
+    holdStartRef.current = null;
+    safeVibrate([12, 8, 24]);
+    // brief slow-mo before settle
+    window.setTimeout(() => onSettled(), 380);
+  }, [onSettled]);
+
   const startHold = useCallback(async () => {
     if (phase !== "idle") return;
     void unlockSfxFromUserGesture();
@@ -727,20 +730,7 @@ function PlayStage({
         endHold();
       }
     }, 80);
-  }, [phase, setPhase]);
-
-  const endHold = useCallback(() => {
-    if (intensityTimerRef.current) {
-      window.clearInterval(intensityTimerRef.current);
-      intensityTimerRef.current = null;
-    }
-    rumbleRef.current?.stop();
-    rumbleRef.current = null;
-    holdStartRef.current = null;
-    safeVibrate([12, 8, 24]);
-    // brief slow-mo before settle
-    window.setTimeout(() => onSettled(), 380);
-  }, [onSettled]);
+  }, [endHold, phase, setPhase]);
 
   const releaseHold = useCallback(() => {
     if (phase !== "shaking") return;
@@ -802,6 +792,7 @@ function PlayStage({
                   ? "pp-rise-rotate"
                   : "pp-dust-away"
                 : "";
+              const disabled = phase !== "settled" || drawing || (selectedCapsule !== null && !isSelected);
               return (
                 <motion.div
                   key={tone}
@@ -809,13 +800,14 @@ function PlayStage({
                   layoutId={`capsule-${tone}`}
                   transition={{ duration: phase === "shaking" ? 0.2 : 0.55, ease: [0.2, 0.8, 0.2, 1] }}
                   className={`absolute ${slowMo} ${stateClass}`}
-                  style={{ left: pos.left, top: pos.top, width: phase === "settled" ? "22%" : "20%" }}
+                  style={{ left: pos.left, top: pos.top, width: phase === "settled" ? (index === 1 ? "29%" : "22%") : (index === 1 ? "25%" : "20%") }}
                 >
                   <Capsule
                     tone={tone}
                     size={phase === "shaking" ? "md" : "lg"}
                     selected={isSelected}
                     dim={isOther && phase === "settled"}
+                    disabled={disabled}
                     onClick={phase === "settled" ? () => onPick(index) : undefined}
                     className={breatheClass}
                     style={{ position: "static" }}
@@ -846,7 +838,10 @@ function PlayStage({
             <span className="relative">{phase === "shaking" ? "ค้างไว้..." : "กดค้างเพื่อเขย่า"}</span>
           </button>
         ) : phase === "settled" ? (
-          <div className="text-center text-xs text-[#C8C0A8]">— แตะแคปซูลเพื่อเปิดรางวัล —</div>
+          <div className="space-y-1 text-center">
+            <div className="text-xs text-[#C8C0A8]">— แตะแคปซูลเพื่อเปิดรางวัล —</div>
+            <div className="text-[11px] font-semibold text-[#E8C994]">แตะเพื่อเลือก 1 ลูก</div>
+          </div>
         ) : (
           <div className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#D4AF7A]/40 bg-[#063A2A]/60 px-5 py-3 backdrop-blur">
             <LoaderCircle className="animate-spin text-[#E8C994]" size={16} />

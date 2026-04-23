@@ -16,14 +16,14 @@ export const CAPSULE_TONES: readonly CapsuleTone[] = [
 ];
 
 const TONE_FILL: Record<CapsuleTone, { top: string; bottom: string; band: string }> = {
-  amber: { top: "#F4D58A", bottom: "#9C7236", band: "#E8C994" },
-  rose: { top: "#F2B8C6", bottom: "#8E3B53", band: "#E89BB0" },
-  sage: { top: "#C6E5C0", bottom: "#3F6E47", band: "#A8D6A2" },
-  ivory: { top: "#F5EFE0", bottom: "#A89F86", band: "#E8DFC4" },
-  cobalt: { top: "#A6C8F0", bottom: "#244A7B", band: "#7FAEE3" },
-  amethyst: { top: "#D9C6F2", bottom: "#4F3878", band: "#B8A0E0" },
-  teal: { top: "#A6E0DA", bottom: "#1F5E58", band: "#7CCBC2" },
-  sand: { top: "#EBD8B5", bottom: "#7C5E32", band: "#D4B985" },
+  amber: { top: "#F4D58A", bottom: "#7D5A24", band: "#E3B763" },
+  rose: { top: "#E8B6C2", bottom: "#704055", band: "#CFA6B2" },
+  sage: { top: "#9ED2A8", bottom: "#1E5A42", band: "#6DAD7E" },
+  ivory: { top: "#F2EADB", bottom: "#8E8168", band: "#DCC9A2" },
+  cobalt: { top: "#A4C2E7", bottom: "#214E73", band: "#7CA8D3" },
+  amethyst: { top: "#CDBCE6", bottom: "#4A3A6E", band: "#A18BC8" },
+  teal: { top: "#90D5CC", bottom: "#1B6058", band: "#64B7AC" },
+  sand: { top: "#E5D2AD", bottom: "#6F5430", band: "#CFA972" },
 };
 
 type Size = "sm" | "md" | "lg";
@@ -55,12 +55,17 @@ export function Capsule({
   className?: string;
   ariaLabel?: string;
 }) {
-  const dim_ = dim ? "opacity-35" : "opacity-100";
+  const dim_ = dim ? "opacity-35 saturate-75" : "opacity-100";
   const ring = selected
-    ? "drop-shadow-[0_0_18px_rgba(232,201,148,0.85)] drop-shadow-[0_0_38px_rgba(232,201,148,0.45)]"
+    ? "scale-[1.08] drop-shadow-[0_0_18px_rgba(232,201,148,0.88)] drop-shadow-[0_0_36px_rgba(232,201,148,0.42)]"
     : "drop-shadow-[0_8px_18px_rgba(3,18,12,0.5)]";
   const interactive = Boolean(onClick) && !disabled;
-  const cls = `absolute transition-opacity duration-300 ${dim_} ${ring} ${interactive ? "cursor-pointer active:scale-95" : "cursor-default"} ${className}`;
+  const stateCls = disabled
+    ? "cursor-not-allowed opacity-30 grayscale"
+    : interactive
+      ? "cursor-pointer hover:scale-[1.04] hover:-translate-y-0.5 hover:drop-shadow-[0_0_16px_rgba(212,175,122,0.4)] active:scale-[0.96]"
+      : "cursor-default";
+  const cls = `absolute transition duration-250 ease-out ${dim_} ${ring} ${stateCls} ${className}`;
   const { w, h } = SIZE_PX[size];
 
   return (
