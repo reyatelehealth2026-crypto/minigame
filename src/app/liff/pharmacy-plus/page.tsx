@@ -7,6 +7,8 @@ import confetti from "canvas-confetti";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   CheckCircle2,
+  Copy,
+  Eye,
   Gift,
   HeartHandshake,
   LoaderCircle,
@@ -50,6 +52,7 @@ import { classifyReward } from "@/lib/pharmacy-plus-theme";
 
 type Step = "landing" | "play" | "reward" | "gate" | "wallet" | "success";
 type PlayPhase = "idle" | "shaking" | "settled" | "drawing";
+const STAFF_PROMPT = "โชว์โค้ดนี้กับพนักงานที่ร้าน";
 
 const BOARD_STEPS = [
   { key: "play", title: "เขย่า & เลือก", description: "เขย่าแล้วแตะลูกที่ใช่", icon: Smartphone },
@@ -77,8 +80,8 @@ const STEP_COPY: Record<Exclude<Step, "play">, { eyebrow: string; title: string;
   landing: { eyebrow: "Lucky Draw", title: "เขย่าบอล ลุ้นโชค", description: "เขย่ามือถือแล้วแตะ 1 ลูกเพื่อรับรางวัล" },
   reward: { eyebrow: "Your Reward", title: "เปิดรางวัล", description: "" },
   gate: { eyebrow: "LINE Unlock", title: "เพิ่มเพื่อนรับสิทธิ์", description: "ปลดล็อกคูปองผ่าน LINE OA" },
-  wallet: { eyebrow: "Coupon Wallet", title: "สิทธิ์พร้อมใช้", description: "โชว์โค้ดนี้ให้พนักงานที่หน้าร้าน" },
-  success: { eyebrow: "Completed", title: "เรียบร้อยแล้ว", description: "เก็บโค้ดนี้ไว้ใช้ที่ร้านได้เลย" },
+  wallet: { eyebrow: "Coupon Wallet", title: "สิทธิ์พร้อมใช้", description: STAFF_PROMPT },
+  success: { eyebrow: "Completed", title: "เรียบร้อยแล้ว", description: STAFF_PROMPT },
 };
 
 function PrimaryButton({ children, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
@@ -183,7 +186,21 @@ function rewardAmount(title: string): number | null {
   return m ? Number(m[0]) : null;
 }
 
-function RewardTicketCard({ reward, label }: { reward: CampaignReward; label: string }) {
+function RewardTicketCard({
+  reward,
+  label,
+  copied,
+  onCopyCode,
+  onShowForStaff,
+  staffMode,
+}: {
+  reward: CampaignReward;
+  label: string;
+  copied: boolean;
+  onCopyCode: () => void;
+  onShowForStaff: () => void;
+  staffMode: boolean;
+}) {
   return (
     <div className="rounded-[1.8rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,#0F5A3D_0%,#063A2A_100%)] p-5 text-[#F5EFE0] shadow-[0_24px_48px_rgba(3,18,12,0.6)]">
       <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-[#E8C994]">{label}</div>
@@ -194,7 +211,33 @@ function RewardTicketCard({ reward, label }: { reward: CampaignReward; label: st
         </div>
         <div className="rounded-2xl border border-[#D4AF7A]/30 bg-[#063A2A] p-3 text-[#E8C994]"><Ticket size={22} /></div>
       </div>
-      <div className="mt-4 rounded-2xl border border-[#D4AF7A]/30 bg-[#03261C] px-4 py-3 text-center font-mono text-base font-bold tracking-[0.18em] text-[#F5EFE0]">{reward.couponCode}</div>
+      <div
+        className={`mt-4 rounded-2xl border px-4 text-center font-mono font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] transition ${
+          staffMode
+            ? "border-[#E8C994] bg-[#FFF9EE] py-5 text-3xl tracking-[0.28em] text-[#1A2520]"
+            : "border-[#D4AF7A]/45 bg-[#F5EFE0] py-4 text-2xl tracking-[0.24em] text-[#163128]"
+        }`}
+      >
+        {reward.couponCode}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onCopyCode}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D4AF7A]/40 bg-[#03261C] px-3 py-2.5 text-sm font-bold text-[#F5EFE0] transition hover:bg-[#0A4632]"
+        >
+          <Copy size={16} />
+          {copied ? "คัดลอกแล้ว" : "คัดลอกรหัส"}
+        </button>
+        <button
+          type="button"
+          onClick={onShowForStaff}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D4AF7A]/40 bg-[#03261C] px-3 py-2.5 text-sm font-bold text-[#F5EFE0] transition hover:bg-[#0A4632]"
+        >
+          <Eye size={16} />
+          แสดงให้พนักงาน
+        </button>
+      </div>
       {reward.expiresAt ? <div className="mt-3 text-xs text-[#C8C0A8]">ใช้ได้ถึง {formatThaiDate(reward.expiresAt)}</div> : null}
     </div>
   );
@@ -217,6 +260,8 @@ export default function PharmacyPlusPage() {
   const [gateChecking, setGateChecking] = useState(false);
   const [gateAttempts, setGateAttempts] = useState(0);
   const [gateMessage, setGateMessage] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [staffMode, setStaffMode] = useState(false);
   const sfxMuted = useSyncExternalStore(subscribeSfxMute, getSfxMutedSnapshot, () => false);
   const source = useMemo(() => createSourceFromParams(params), [params]);
   const lastStepEventRef = useRef<string | null>(null);
@@ -410,7 +455,27 @@ export default function PharmacyPlusPage() {
 
   const handleFinishWallet = () => {
     if (!reward) return;
+    setStaffMode(false);
+    setCopiedCode(null);
     setStep("success");
+  };
+
+  const handleCopyCode = async () => {
+    if (!reward?.couponCode) return;
+    try {
+      await navigator.clipboard.writeText(reward.couponCode);
+      setCopiedCode(reward.couponCode);
+      safeVibrate([14, 24, 14]);
+      void playTap();
+    } catch {
+      setCopiedCode(null);
+    }
+  };
+
+  const handleShowForStaff = () => {
+    setStaffMode(true);
+    safeVibrate(18);
+    void playTap();
   };
 
   const boardStep: Step = step === "landing" ? "play" : step === "gate" || step === "success" ? "wallet" : step;
@@ -513,13 +578,20 @@ export default function PharmacyPlusPage() {
 
                   {step === "wallet" && reward && (
                     <div className="space-y-4">
-                      <RewardTicketCard reward={reward} label={reward.status === "redeemed" ? "Coupon Redeemed" : "Coupon Claimed"} />
+                      <RewardTicketCard
+                        reward={reward}
+                        label={reward.status === "redeemed" ? "Coupon Redeemed" : "Coupon Claimed"}
+                        copied={copiedCode === reward.couponCode}
+                        onCopyCode={() => void handleCopyCode()}
+                        onShowForStaff={handleShowForStaff}
+                        staffMode={staffMode}
+                      />
                       <div className="rounded-[1.4rem] border border-[#D4AF7A]/25 bg-[#0A4632]/60 px-4 py-4">
                         <div className="flex items-start gap-3">
                           <div className="rounded-2xl bg-[#D4AF7A]/15 p-2 text-[#E8C994]"><ShieldCheck size={18} /></div>
                           <div>
                             <div className="text-sm font-black text-[#F5EFE0]">วิธีใช้สิทธิ์</div>
-                            <div className="mt-1 text-sm leading-6 text-[#C8C0A8]">แสดงโค้ดนี้ให้พนักงานที่หน้าร้าน ลูกค้าไม่ต้องกด redeem เองในหน้านี้</div>
+                            <div className="mt-1 text-sm leading-6 text-[#C8C0A8]">{STAFF_PROMPT}</div>
                             {reward.expiresAt ? <div className="mt-2 text-xs text-[#C8C0A8]/80">ใช้ได้ถึง {formatThaiDate(reward.expiresAt)}</div> : null}
                           </div>
                         </div>
@@ -535,7 +607,7 @@ export default function PharmacyPlusPage() {
                           <CheckCircle2 size={30} />
                         </div>
                         <div className="font-pp-display mt-4 text-3xl font-semibold tracking-tight text-[#F5EFE0]">เรียบร้อย!</div>
-                        <p className="mt-2 text-sm leading-6 text-[#C8C0A8]">เก็บหน้านี้ไว้หรือแคปจอ แล้วแสดงโค้ดกับพนักงานเมื่อใช้สิทธิ์</p>
+                        <p className="mt-2 text-sm leading-6 text-[#C8C0A8]">{STAFF_PROMPT}</p>
                         <div className="mt-4 rounded-2xl border border-[#D4AF7A]/30 bg-[#03261C] px-4 py-3 font-mono text-sm font-bold tracking-[0.18em] text-[#F5EFE0]">
                           {reward.title} · {reward.couponCode}
                         </div>
