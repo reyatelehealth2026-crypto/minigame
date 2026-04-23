@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import confetti from "canvas-confetti";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -960,6 +961,18 @@ function LandingHero({
 }) {
   const [previewShaking, setPreviewShaking] = useState(false);
 
+  const heroCandidates = [
+    { key: "a", src: "/images/pharmacy-plus/hero-a.svg" },
+    { key: "b", src: "/images/pharmacy-plus/hero-b.svg" },
+    { key: "c", src: "/images/pharmacy-plus/hero-c.svg" },
+  ] as const;
+
+  const selectedHero = useMemo(() => {
+    if (typeof window === "undefined") return heroCandidates[0];
+    const requested = new URLSearchParams(window.location.search).get("hero");
+    return heroCandidates.find((item) => item.key === requested) ?? heroCandidates[0];
+  }, []);
+
   const triggerPreview = () => {
     if (previewShaking) return;
     void unlockSfxFromUserGesture();
@@ -973,61 +986,37 @@ function LandingHero({
 
   return (
     <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-[2.4rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,#0F5A3D_0%,#063A2A_60%,#03261C_100%)] p-6 pb-7 text-[#F5EFE0] shadow-[0_30px_80px_rgba(3,18,12,0.55)]">
-        <div className="pp-noise-overlay" />
-        <div className="pp-vignette-gold pointer-events-none absolute inset-0" />
-        <div className="relative">
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF7A]/50 bg-[#03261C]/60 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.28em] text-[#E8C994] backdrop-blur">
+      <section className="relative overflow-hidden rounded-[2.4rem] border border-[#D4AF7A]/40 bg-[#063A2A] text-[#F5EFE0] shadow-[0_30px_80px_rgba(3,18,12,0.55)]">
+        <div className="relative h-[28rem]">
+          <Image
+            src={selectedHero.src}
+            alt="Pharmacy Plus Lucky Draw Hero"
+            fill
+            priority
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 28rem"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,38,28,0.08)_5%,rgba(3,38,28,0.58)_48%,rgba(3,38,28,0.9)_100%)]" />
+        </div>
+
+        <div className="relative space-y-4 px-6 pb-7 pt-5">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF7A]/50 bg-[#03261C]/65 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.28em] text-[#E8C994] backdrop-blur">
             <Sparkles size={12} /> Apothecary Draw
           </div>
-          <h1 className="font-pp-display mt-3 text-[3rem] font-semibold leading-[1.02] tracking-tight">
-            เขย่าโชค <span className="pp-shimmer-text font-semibold">ลุ้นรางวัล</span>
-          </h1>
+
           {configLoading ? (
-            <div className="mt-2 h-4 w-48 max-w-full animate-pulse rounded-full bg-[#F5EFE0]/15" aria-hidden />
+            <div className="h-4 w-48 max-w-full animate-pulse rounded-full bg-[#F5EFE0]/15" aria-hidden />
           ) : campaignName ? (
-            <p className="mt-2 text-sm font-semibold leading-snug text-[#E8C994]">{campaignName}</p>
+            <p className="text-sm font-semibold leading-snug text-[#E8C994]">{campaignName}</p>
           ) : null}
-          <p className="mt-2 text-sm leading-6 text-[#C8C0A8]">เขย่าครั้งเดียว · แตะ 1 ลูก · รับรางวัลทันที</p>
-          <div className="pp-gold-divider mt-4" />
+
+          <p className="font-pp-display text-2xl font-semibold leading-tight tracking-tight text-[#F5EFE0]">ลุ้นคูปองส่วนลดทันที</p>
 
           {liffReady && loggedIn && displayName ? (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#D4AF7A]/40 bg-[#03261C]/60 px-3 py-1.5 text-xs font-semibold text-[#F5EFE0] backdrop-blur">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF7A]/40 bg-[#03261C]/60 px-3 py-1.5 text-xs font-semibold text-[#F5EFE0] backdrop-blur">
               เล่นในชื่อ <span className="font-pp-display text-base font-semibold text-[#E8C994]">{displayName}</span>
             </div>
           ) : null}
-
-          {/* Capsule preview */}
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={triggerPreview}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); triggerPreview(); } }}
-            aria-label="ลองเขย่าแคปซูล"
-            className="relative mx-auto mt-6 block h-72 w-full cursor-pointer select-none"
-          >
-            <div className={`relative mx-auto h-full w-[16rem] ${previewShaking ? "pp-shake" : ""}`}>
-              <div className="absolute inset-x-2 top-2 h-16 rounded-t-[3.5rem] border-x border-t border-[#D4AF7A]/40 bg-[linear-gradient(180deg,rgba(245,239,224,0.18)_0%,rgba(245,239,224,0.04)_100%)]" />
-              <div className={`absolute inset-x-2 top-12 bottom-12 overflow-hidden rounded-[2.4rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,rgba(245,239,224,0.08)_0%,rgba(245,239,224,0.02)_100%)] ${previewShaking ? "pp-edge-glow-strong" : "pp-edge-glow"}`}>
-                <div className="pointer-events-none absolute inset-x-4 top-3 h-6 rounded-full bg-[#F5EFE0]/15 blur-[2px]" />
-                {CAPSULE_LIST.slice(0, 6).map((tone, index) => {
-                  const layout = CLUSTER_LAYOUT[index % CLUSTER_LAYOUT.length];
-                  return (
-                    <Capsule
-                      key={tone}
-                      tone={tone}
-                      size="sm"
-                      style={{ left: layout.left, top: layout.top }}
-                      className={previewShaking ? "" : index % 2 === 0 ? "pp-float" : "pp-bob"}
-                    />
-                  );
-                })}
-              </div>
-              <div className="absolute inset-x-6 bottom-0 flex h-12 items-center justify-center rounded-b-[1.6rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] text-xs font-black uppercase tracking-[0.32em] text-[#1A2520] shadow-[0_10px_20px_rgba(3,18,12,0.4),inset_0_2px_0_rgba(255,255,255,0.55)]">
-                Pharmacy+
-              </div>
-            </div>
-          </div>
 
           {configLoading ? (
             <ul className="mt-4 space-y-2" aria-hidden>
@@ -1061,16 +1050,16 @@ function LandingHero({
             <button
               type="button"
               onClick={onLogin}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.18em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4)]"
+              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.18em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4)]"
             >
               <LogIn size={20} /> เข้าใช้งานผ่าน LINE
             </button>
           ) : (
             <button
               type="button"
-              onClick={onStart}
+              onClick={() => { triggerPreview(); onStart(); }}
               disabled={startDisabled}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.22em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4),inset_0_-4px_0_rgba(0,0,0,0.18),inset_0_2px_0_rgba(255,255,255,0.55)] transition hover:brightness-105 disabled:opacity-60"
+              className={`mt-1 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.22em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4),inset_0_-4px_0_rgba(0,0,0,0.18),inset_0_2px_0_rgba(255,255,255,0.55)] transition hover:brightness-105 disabled:opacity-60 ${previewShaking ? "pp-shake" : ""}`}
             >
               {starting ? (
                 <>
