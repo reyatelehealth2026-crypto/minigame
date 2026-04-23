@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import { useId, type SVGProps } from "react";
 
 export function WaxSeal({
   size = 84,
@@ -10,7 +10,8 @@ export function WaxSeal({
   label?: string;
   latin?: string;
 } & Omit<SVGProps<SVGSVGElement>, "color">) {
-  const id = `pp-wax-${Math.random().toString(36).slice(2, 7)}`;
+  const reactId = useId();
+  const id = `pp-wax-${reactId.replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
     <svg
       width={size}

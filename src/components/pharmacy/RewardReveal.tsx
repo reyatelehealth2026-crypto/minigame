@@ -46,13 +46,13 @@ export function RewardReveal({
   onComplete?: () => void;
   onGlassCrack?: () => void;
 }) {
-  const [phase, setPhase] = useState<Phase>("idle");
+  const [phase, setPhase] = useState<Phase>("shake");
   const [displayAmount, setDisplayAmount] = useState(0);
   const counter = useMotionValue(0);
   const fired = useRef({ crack: false, complete: false });
 
   useEffect(() => {
-    setPhase("shake");
+    fired.current = { crack: false, complete: false };
     const t1 = window.setTimeout(() => {
       setPhase("crack");
       if (!fired.current.crack) {

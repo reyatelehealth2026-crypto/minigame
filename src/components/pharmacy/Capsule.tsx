@@ -56,12 +56,17 @@ export function Capsule({
   className?: string;
   ariaLabel?: string;
 }) {
-  const dim_ = dim ? "opacity-35" : "opacity-100";
+  const dim_ = dim ? "opacity-35 saturate-75" : "opacity-100";
   const ring = selected
-    ? "drop-shadow-[0_0_14px_rgba(184,148,74,0.85)] drop-shadow-[0_0_30px_rgba(138,106,46,0.5)]"
+    ? "scale-[1.08] drop-shadow-[0_0_14px_rgba(184,148,74,0.85)] drop-shadow-[0_0_30px_rgba(138,106,46,0.5)]"
     : "drop-shadow-[0_6px_10px_rgba(58,42,24,0.35)]";
   const interactive = Boolean(onClick) && !disabled;
-  const cls = `absolute transition-opacity duration-300 ${dim_} ${ring} ${interactive ? "cursor-pointer active:scale-95" : "cursor-default"} ${className}`;
+  const stateCls = disabled
+    ? "cursor-not-allowed opacity-30 grayscale"
+    : interactive
+      ? "cursor-pointer hover:scale-[1.04] hover:-translate-y-0.5 hover:drop-shadow-[0_0_16px_rgba(212,175,122,0.4)] active:scale-[0.96]"
+      : "cursor-default";
+  const cls = `absolute transition duration-250 ease-out ${dim_} ${ring} ${stateCls} ${className}`;
   const { w, h } = SIZE_PX[size];
 
   return (
