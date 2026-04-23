@@ -1,0 +1,21 @@
+<svg width="1080" height="1920" viewBox="0 0 1080 1920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1080" y2="1920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E5D45"/>
+      <stop offset="0.55" stop-color="#0A4632"/>
+      <stop offset="1" stop-color="#03261C"/>
+    </linearGradient>
+    <radialGradient id="gold" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(540 420) rotate(90) scale(620)">
+      <stop stop-color="#E8C994" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#E8C994" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <rect width="1080" height="1920" fill="url(#gold)"/>
+  <circle cx="540" cy="860" r="280" fill="#0F5A3D" stroke="#D4AF7A" stroke-width="10"/>
+  <circle cx="540" cy="860" r="210" fill="#0A4632" stroke="#E8C994" stroke-opacity="0.5" stroke-width="6"/>
+  <g fill="#D4AF7A" fill-opacity="0.8">
+    <circle cx="440" cy="810" r="30"/><circle cx="610" cy="770" r="24"/><circle cx="500" cy="930" r="28"/>
+    <circle cx="620" cy="920" r="34"/><circle cx="560" cy="840" r="20"/><circle cx="460" cy="700" r="22"/>
+  </g>
+</svg>
