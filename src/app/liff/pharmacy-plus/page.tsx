@@ -247,6 +247,12 @@ function RewardTicketCard({
   );
 }
 
+const HERO_CANDIDATES = [
+  { key: "a", src: "/images/pharmacy-plus/hero-a.svg" },
+  { key: "b", src: "/images/pharmacy-plus/hero-b.svg" },
+  { key: "c", src: "/images/pharmacy-plus/hero-c.svg" },
+] as const;
+
 export default function PharmacyPlusPage() {
   const { ready, loggedIn, profile, friendship, refreshFriendship, login, error } = useLiff();
   const params = useSearchParams();
@@ -1037,16 +1043,10 @@ function LandingHero({
 }) {
   const [previewShaking, setPreviewShaking] = useState(false);
 
-  const heroCandidates = [
-    { key: "a", src: "/images/pharmacy-plus/hero-a.svg" },
-    { key: "b", src: "/images/pharmacy-plus/hero-b.svg" },
-    { key: "c", src: "/images/pharmacy-plus/hero-c.svg" },
-  ] as const;
-
   const selectedHero = useMemo(() => {
-    if (typeof window === "undefined") return heroCandidates[0];
+    if (typeof window === "undefined") return HERO_CANDIDATES[0];
     const requested = new URLSearchParams(window.location.search).get("hero");
-    return heroCandidates.find((item) => item.key === requested) ?? heroCandidates[0];
+    return HERO_CANDIDATES.find((item) => item.key === requested) ?? HERO_CANDIDATES[0];
   }, []);
 
   const triggerPreview = () => {

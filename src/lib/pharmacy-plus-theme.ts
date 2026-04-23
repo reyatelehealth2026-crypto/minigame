@@ -1,32 +1,41 @@
 export const PP_THEME = {
   bg: {
-    deep: "#063A2A",
-    forest: "#0F5A3D",
-    velvet: "#0A4632",
-    night: "#03261C",
+    deep: "#F1E6CC",
+    forest: "#F5EDD8",
+    velvet: "#E8D9B5",
+    night: "#E1D0A5",
   },
   gold: {
-    champagne: "#D4AF7A",
-    warm: "#E8C994",
-    deep: "#9C7A3F",
-    glow: "rgba(212, 175, 122, 0.45)",
+    champagne: "#B8944A",
+    warm: "#C9A55E",
+    deep: "#8A6A2E",
+    glow: "rgba(184,148,74,0.35)",
   },
   ink: {
-    cream: "#F5EFE0",
-    muted: "#C8C0A8",
-    deep: "#1A2520",
+    cream: "#F5EDD8",
+    muted: "#7A6A4E",
+    deep: "#3A2A18",
   },
-  glass: "rgba(245,239,224,0.08)",
-  border: "rgba(212,175,122,0.4)",
+  herb: {
+    sage: "#6B7E5A",
+    forest: "#2E4A33",
+    sprig: "#8FA074",
+  },
+  burgundy: {
+    wine: "#8E3B53",
+    seal: "#A2243B",
+  },
+  glass: "rgba(58,42,24,0.06)",
+  border: "rgba(58,42,24,0.35)",
 } as const;
 
 export const PP_GRADIENTS = {
-  page: "linear-gradient(180deg, #063A2A 0%, #0F5A3D 50%, #03261C 100%)",
-  card: "linear-gradient(180deg, rgba(245,239,224,0.06), rgba(245,239,224,0.02))",
+  page: "linear-gradient(180deg, #F5EDD8 0%, #F1E6CC 50%, #E8D9B5 100%)",
+  card: "linear-gradient(180deg, rgba(255,250,235,0.65), rgba(241,230,204,0.35))",
   goldButton:
-    "linear-gradient(180deg, #E8C994 0%, #D4AF7A 50%, #9C7A3F 100%)",
+    "linear-gradient(180deg, #C9A55E 0%, #B8944A 55%, #8A6A2E 100%)",
   goldShimmer:
-    "linear-gradient(120deg, transparent 30%, rgba(255,245,220,0.55) 48%, transparent 60%)",
+    "linear-gradient(120deg, transparent 30%, rgba(247,230,190,0.7) 48%, transparent 60%)",
 } as const;
 
 export type RewardTier = "standard" | "premium";
