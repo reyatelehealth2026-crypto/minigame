@@ -55,7 +55,7 @@ type PlayPhase = "idle" | "shaking" | "settled" | "drawing";
 const STAFF_PROMPT = "โชว์โค้ดนี้กับพนักงานที่ร้าน";
 
 const BOARD_STEPS = [
-  { key: "play", title: "เขย่า & เลือก", description: "เขย่าแล้วแตะลูกที่ใช่", icon: Smartphone },
+  { key: "play", title: "เขย่าเลือก", description: "เขย่าแล้วแตะลูกที่ใช่", icon: Smartphone },
   { key: "reward", title: "เปิดรางวัล", description: "ลุ้นรางวัลที่ได้", icon: Gift },
   { key: "wallet", title: "รับสิทธิ์", description: "ปลดล็อกผ่าน LINE", icon: HeartHandshake },
 ] as const;
@@ -107,11 +107,14 @@ function SecondaryButton({ children, className = "", ...props }: React.ButtonHTM
 }
 
 function StoryboardHeader({ current }: { current: Step }) {
-  const activeIndex = Math.max(0, BOARD_KEYS.indexOf(current));
+  const rawIndex = BOARD_KEYS.indexOf(current);
+  const activeIndex = Math.max(0, rawIndex);
+  const nextStep = BOARD_STEPS[activeIndex + 1];
+  const nextLabel = nextStep ? `ขั้นตอนถัดไป: ${nextStep.title}` : "ขั้นตอนถัดไป: เสร็จแล้ว";
   return (
     <section className="rounded-[1.8rem] border border-[#D4AF7A]/30 bg-[#0A4632]/70 p-3 backdrop-blur-md shadow-[0_16px_40px_rgba(3,38,28,0.45)]">
       <div className="flex items-center justify-between px-1 pb-2">
-        <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#C8C0A8]">Flow</div>
+        <div className="text-[10px] font-bold tracking-[0.2em] text-[#C8C0A8]">ขั้นตอน</div>
         <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#E8C994]">
           {`${activeIndex + 1}/${BOARD_STEPS.length}`}
         </div>
@@ -125,15 +128,15 @@ function StoryboardHeader({ current }: { current: Step }) {
               <div
                 className={`flex h-11 w-11 items-center justify-center rounded-2xl transition ${
                   isActive
-                    ? "bg-[linear-gradient(180deg,#E8C994,#D4AF7A)] text-[#1A2520] shadow-[0_10px_20px_rgba(212,175,122,0.35)]"
+                    ? "border border-[#F8E4B6] bg-[linear-gradient(180deg,#F7DCA9,#D4AF7A)] text-[#0A2D21] shadow-[0_12px_28px_rgba(212,175,122,0.45)]"
                     : isDone
-                      ? "bg-[#D4AF7A]/20 text-[#E8C994]"
-                      : "bg-[#F5EFE0]/5 text-[#C8C0A8]/60"
+                      ? "border border-[#D4AF7A]/20 bg-[#D4AF7A]/12 text-[#E8C994]/75"
+                      : "border border-[#F5EFE0]/5 bg-[#F5EFE0]/[0.03] text-[#C8C0A8]/40"
                 }`}
               >
                 <Icon size={18} />
               </div>
-              <div className={`mt-1 text-[10px] font-bold leading-tight ${isActive ? "text-[#F5EFE0]" : "text-[#C8C0A8]"}`}>{title}</div>
+              <div className={`mt-1 text-[10px] font-bold leading-tight ${isActive ? "text-[#FFF8E8]" : isDone ? "text-[#C8C0A8]/75" : "text-[#C8C0A8]/50"}`}>{title}</div>
             </div>
           );
         })}
@@ -146,6 +149,7 @@ function StoryboardHeader({ current }: { current: Step }) {
           />
         ))}
       </div>
+      <div className="mt-2 px-1 text-[10px] font-medium text-[#C8C0A8]">{nextLabel}</div>
     </section>
   );
 }
