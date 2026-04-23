@@ -467,23 +467,42 @@ export default function PharmacyPlusPage() {
                         </div>
                         <div className="font-pp-display mt-4 text-2xl font-semibold tracking-tight text-[#F5EFE0]">เพิ่มเพื่อน LINE OA</div>
                         <div className="mt-2 text-sm leading-6 text-[#C8C0A8]">ปลดล็อกสิทธิ์รับคูปองและเก็บไว้ใน LINE ของคุณ</div>
+                        <ul className="mt-4 space-y-2 rounded-[1.2rem] border border-[#D4AF7A]/25 bg-[#03261C] p-4 text-left text-sm text-[#C8C0A8]">
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[#E8C994]" />
+                            รับคูปองได้ทันทีหลังปลดล็อก
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[#E8C994]" />
+                            ใช้งานสิทธิ์ได้ที่ร้านโดยแสดงโค้ดให้พนักงาน
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[#E8C994]" />
+                            ไม่เสียค่าใช้จ่ายในการเข้าร่วม
+                          </li>
+                        </ul>
                         <div className="mt-4 rounded-[1.4rem] border border-[#D4AF7A]/25 bg-[#03261C] px-4 py-3 text-sm text-[#C8C0A8]">
                           สถานะปัจจุบัน: <span className="font-bold text-[#F5EFE0]">{isFriend ? "เพิ่มเพื่อนแล้ว" : "ยังไม่ได้เพิ่มเพื่อน"}</span>
                         </div>
-                        {!isFriend ? (
-                          <a
-                            href={config?.addFriendUrl ?? "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => void logEvent("add_friend_click", { qrId: source.qrId ?? null }, "gate")}
-                            className="mt-4 inline-flex w-full items-center justify-center rounded-[1.35rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-3.5 text-base font-bold text-[#1A2520] shadow-[0_16px_30px_rgba(212,175,122,0.4)]"
-                          >
-                            เพิ่มเพื่อน
-                          </a>
+                        <a
+                          href={config?.addFriendUrl ?? "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => void logEvent("add_friend_click", { qrId: source.qrId ?? null }, "gate")}
+                          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[1.35rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-3.5 text-base font-bold text-[#1A2520] shadow-[0_16px_30px_rgba(212,175,122,0.4)]"
+                        >
+                          <HeartHandshake size={18} />
+                          เพิ่มเพื่อน LINE OA
+                        </a>
+                        <SecondaryButton className="mt-3" onClick={handleGateCheck} disabled={gateChecking || claiming}>
+                          {gateChecking ? "กำลังตรวจสอบสถานะ..." : isFriend ? "ตรวจสอบสถานะแล้ว ไปต่อ" : "ตรวจสอบสถานะการเพิ่มเพื่อน"}
+                        </SecondaryButton>
+                        {gateChecking ? (
+                          <div className="mt-3 flex items-center gap-2 rounded-[1.2rem] border border-[#D4AF7A]/30 bg-[#D4AF7A]/10 px-4 py-3 text-left text-sm text-[#F5EFE0]">
+                            <LoaderCircle size={16} className="shrink-0 animate-spin text-[#E8C994]" />
+                            กำลังเช็กสถานะการเพิ่มเพื่อน กรุณารอสักครู่...
+                          </div>
                         ) : null}
-                        <PrimaryButton className="mt-3" onClick={handleGateCheck} disabled={gateChecking || claiming}>
-                          {gateChecking ? "กำลังตรวจสอบ..." : isFriend ? "ไปต่อ" : "ฉันเพิ่มเพื่อนแล้ว"}
-                        </PrimaryButton>
                         {gateMessage ? (
                           <div className="mt-3 rounded-[1.2rem] border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-left text-sm text-amber-100">
                             {gateMessage}
