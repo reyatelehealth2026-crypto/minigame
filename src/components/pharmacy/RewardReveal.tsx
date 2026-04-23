@@ -9,14 +9,14 @@ import { WaxSeal } from "./ornaments/WaxSeal";
 
 type Phase = "idle" | "shake" | "crack" | "reveal";
 
-const PARTICLES = Array.from({ length: 18 }).map((_, i) => {
+const PARTICLES = Array.from({ length: 14 }).map((_, i) => {
   const angle = (i / 18) * Math.PI * 2;
-  const dist = 80 + (i % 3) * 22;
+  const dist = 64 + (i % 3) * 18;
   return {
     px: `${Math.cos(angle) * dist}px`,
     py: `${Math.sin(angle) * dist}px`,
-    delay: (i % 6) * 0.04,
-    size: 6 + (i % 3) * 3,
+    delay: (i % 7) * 0.06,
+    size: 4 + (i % 3) * 2,
   };
 });
 
@@ -46,6 +46,7 @@ export function RewardReveal({
   onComplete?: () => void;
   onGlassCrack?: () => void;
 }) {
+  const isMonetary = Boolean(amount && amount > 0);
   const [phase, setPhase] = useState<Phase>("shake");
   const [displayAmount, setDisplayAmount] = useState(0);
   const counter = useMotionValue(0);
@@ -62,7 +63,7 @@ export function RewardReveal({
     }, 800);
     const t2 = window.setTimeout(() => {
       setPhase("reveal");
-      if (amount && amount > 0) {
+      if (isMonetary && amount) {
         const controls = animate(counter, amount, {
           duration: 0.7,
           ease: [0.2, 0.8, 0.2, 1],
@@ -83,7 +84,7 @@ export function RewardReveal({
       window.clearTimeout(t2);
       window.clearTimeout(t3);
     };
-  }, [amount, counter, onComplete, onGlassCrack]);
+  }, [amount, counter, isMonetary, onComplete, onGlassCrack]);
 
   const code = rewardCode ?? "PHRM-0000";
   const expiry = formatThaiDate(rewardExpiresAt);
