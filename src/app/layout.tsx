@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Cormorant_Garamond, Noto_Sans_Thai } from "next/font/google";
+import { Cormorant_Garamond, Noto_Sans_Thai, Charmonman } from "next/font/google";
 import "./globals.css";
 
 const displaySerif = Cormorant_Garamond({
@@ -14,6 +14,13 @@ const bodyThai = Noto_Sans_Thai({
   subsets: ["thai", "latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-pp-body",
+  display: "swap",
+});
+
+const vintageThai = Charmonman({
+  subsets: ["thai", "latin"],
+  weight: ["400", "700"],
+  variable: "--font-pp-vintage",
   display: "swap",
 });
 
@@ -46,8 +53,8 @@ const SUPPRESS_EXT_NOISE = `
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="th" className={`h-full ${displaySerif.variable} ${bodyThai.variable}`}>
-      <body className="min-h-full bg-[radial-gradient(circle_at_top_left,_rgba(34,197,94,0.10),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.08),_transparent_30%),linear-gradient(180deg,_#f8fffb_0%,_#ffffff_100%)] font-[var(--font-pp-body)] text-slate-900 antialiased">
+    <html lang="th" className={`h-full ${displaySerif.variable} ${bodyThai.variable} ${vintageThai.variable}`}>
+      <body className="pp-parchment min-h-full font-[var(--font-pp-body)] text-[#3A2A18] antialiased">
         <Script id="suppress-ext-noise" strategy="beforeInteractive">{SUPPRESS_EXT_NOISE}</Script>
         {children}
       </body>

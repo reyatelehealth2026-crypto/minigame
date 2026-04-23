@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { animate, useMotionValue } from "framer-motion";
 import { CapsuleSvg, type CapsuleTone } from "./Capsule";
+import { CouponFrame } from "./ornaments/CouponFrame";
+import { RayBurst } from "./ornaments/RayBurst";
+import { WaxSeal } from "./ornaments/WaxSeal";
 
 type Phase = "idle" | "shake" | "crack" | "reveal";
 
@@ -17,12 +20,19 @@ const PARTICLES = Array.from({ length: 18 }).map((_, i) => {
   };
 });
 
+function formatThaiDate(date?: string | null) {
+  if (!date) return null;
+  return new Date(date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+}
+
 export function RewardReveal({
   capsuleTone,
   amount,
   isPremium,
   rewardTitle,
   rewardDetail,
+  rewardCode,
+  rewardExpiresAt,
   onComplete,
   onGlassCrack,
 }: {
@@ -31,6 +41,8 @@ export function RewardReveal({
   isPremium: boolean;
   rewardTitle: string;
   rewardDetail: string;
+  rewardCode?: string;
+  rewardExpiresAt?: string | null;
   onComplete?: () => void;
   onGlassCrack?: () => void;
 }) {
@@ -73,10 +85,22 @@ export function RewardReveal({
     };
   }, [amount, counter, onComplete, onGlassCrack]);
 
+  const code = rewardCode ?? "PHRM-0000";
+  const expiry = formatThaiDate(rewardExpiresAt);
+
   return (
-    <div className="relative mx-auto flex h-72 w-full max-w-sm items-center justify-center">
-      {/* radial halo */}
-      <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(232,201,148,0.45)_0%,rgba(232,201,148,0)_60%)] blur-2xl" />
+    <div className="relative mx-auto flex min-h-[22rem] w-full max-w-sm items-center justify-center">
+      {/* parchment halo */}
+      <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(247,230,190,0.6)_0%,rgba(245,237,216,0)_65%)] blur-2xl" />
+
+      {/* Ray burst behind reveal */}
+      {phase === "reveal" && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="pp-ray-burst opacity-80">
+            <RayBurst size={460} color="#C9A55E" rays={26} />
+          </div>
+        </div>
+      )}
 
       {/* Phase: shake — capsule wobbles in place */}
       {phase === "shake" && (
@@ -98,7 +122,7 @@ export function RewardReveal({
             {PARTICLES.map((p, i) => (
               <span
                 key={i}
-                className="pp-gold-particle absolute left-1/2 top-1/2 rounded-full bg-[#E8C994]"
+                className="pp-gold-particle absolute left-1/2 top-1/2 rounded-full"
                 style={{
                   width: p.size,
                   height: p.size,
@@ -107,7 +131,8 @@ export function RewardReveal({
                   ["--pp-px" as string]: p.px,
                   ["--pp-py" as string]: p.py,
                   animationDelay: `${p.delay}s`,
-                  boxShadow: "0 0 12px rgba(232,201,148,0.9)",
+                  background: "#B8944A",
+                  boxShadow: "0 0 10px rgba(184,148,74,0.9)",
                 }}
               />
             ))}
@@ -115,29 +140,22 @@ export function RewardReveal({
         </div>
       )}
 
-      {/* Phase: reveal — coupon card rises */}
+      {/* Phase: reveal — vintage coupon rises */}
       {phase === "reveal" && (
-        <div className="pp-coupon-rise relative z-10 text-center">
-          {isPremium && (
-            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[#E8C994]/60 bg-[#063A2A]/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.32em] text-[#E8C994] shadow-[0_0_24px_rgba(232,201,148,0.4)]">
-              ★ Big Win ★
-            </div>
-          )}
-          <div className="rounded-[1.4rem] border border-[#D4AF7A]/45 bg-[linear-gradient(180deg,#0F5A3D_0%,#063A2A_100%)] px-7 py-5 shadow-[0_24px_48px_rgba(3,18,12,0.65),inset_0_1px_0_rgba(212,175,122,0.3)]">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.34em] text-[#C8C0A8]">คูปอง</div>
-            {amount && amount > 0 ? (
-              <div className="mt-1 flex items-baseline justify-center gap-1">
-                <span className="font-pp-display pp-shimmer-text text-[3.6rem] font-bold leading-none">
-                  {displayAmount}
-                </span>
-                <span className="font-pp-display text-xl font-medium text-[#E8C994]">บาท</span>
+        <div className="pp-coupon-rise relative z-10 w-full">
+          <div className="relative">
+            <CouponFrame
+              amount={amount && amount > 0 ? displayAmount : null}
+              title={rewardTitle}
+              detail={rewardDetail}
+              code={code}
+              expiry={expiry}
+            />
+            {isPremium ? (
+              <div className="pointer-events-none absolute -right-2 -top-3 z-10 pp-wax-stamp">
+                <WaxSeal size={78} label="พิเศษ" latin="PREMIUM" />
               </div>
-            ) : (
-              <div className="font-pp-display pp-shimmer-text mt-1 text-[2.2rem] font-bold leading-tight">
-                {rewardTitle}
-              </div>
-            )}
-            <div className="mt-1 text-xs leading-snug text-[#C8C0A8]">{rewardDetail}</div>
+            ) : null}
           </div>
         </div>
       )}
