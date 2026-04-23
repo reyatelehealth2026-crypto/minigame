@@ -43,7 +43,7 @@ import {
   type CampaignEventName,
   type CampaignReward,
 } from "@/lib/pharmacy-plus";
-import { Capsule, CAPSULE_TONES, CapsuleSvg, type CapsuleTone } from "@/components/pharmacy/Capsule";
+import { Capsule, CAPSULE_TONES, type CapsuleTone } from "@/components/pharmacy/Capsule";
 import { RewardReveal } from "@/components/pharmacy/RewardReveal";
 import { classifyReward } from "@/lib/pharmacy-plus-theme";
 
@@ -711,6 +711,19 @@ function PlayStage({
   const holdStartRef = useRef<number | null>(null);
   const intensityTimerRef = useRef<number | null>(null);
 
+  const endHold = useCallback(() => {
+    if (intensityTimerRef.current) {
+      window.clearInterval(intensityTimerRef.current);
+      intensityTimerRef.current = null;
+    }
+    rumbleRef.current?.stop();
+    rumbleRef.current = null;
+    holdStartRef.current = null;
+    safeVibrate([12, 8, 24]);
+    // brief slow-mo before settle
+    window.setTimeout(() => onSettled(), 380);
+  }, [onSettled]);
+
   const startHold = useCallback(async () => {
     if (phase !== "idle") return;
     void unlockSfxFromUserGesture();
@@ -727,20 +740,7 @@ function PlayStage({
         endHold();
       }
     }, 80);
-  }, [phase, setPhase]);
-
-  const endHold = useCallback(() => {
-    if (intensityTimerRef.current) {
-      window.clearInterval(intensityTimerRef.current);
-      intensityTimerRef.current = null;
-    }
-    rumbleRef.current?.stop();
-    rumbleRef.current = null;
-    holdStartRef.current = null;
-    safeVibrate([12, 8, 24]);
-    // brief slow-mo before settle
-    window.setTimeout(() => onSettled(), 380);
-  }, [onSettled]);
+  }, [endHold, phase, setPhase]);
 
   const releaseHold = useCallback(() => {
     if (phase !== "shaking") return;
