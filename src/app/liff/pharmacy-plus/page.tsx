@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import confetti from "canvas-confetti";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   CheckCircle2,
+  Copy,
+  Eye,
   Gift,
   HeartHandshake,
   LoaderCircle,
@@ -43,51 +46,42 @@ import {
   type CampaignEventName,
   type CampaignReward,
 } from "@/lib/pharmacy-plus";
-import { Capsule, CAPSULE_TONES, CapsuleSvg, type CapsuleTone } from "@/components/pharmacy/Capsule";
+import { Capsule, CAPSULE_TONES, type CapsuleTone } from "@/components/pharmacy/Capsule";
 import { RewardReveal } from "@/components/pharmacy/RewardReveal";
 import { classifyReward } from "@/lib/pharmacy-plus-theme";
 
 type Step = "landing" | "play" | "reward" | "gate" | "wallet" | "success";
 type PlayPhase = "idle" | "shaking" | "settled" | "drawing";
+const STAFF_PROMPT = "โชว์โค้ดนี้กับพนักงานที่ร้าน";
 
 const BOARD_STEPS = [
-  { key: "play", title: "เขย่า & เลือก", description: "เขย่าแล้วแตะลูกที่ใช่", icon: Smartphone },
+  { key: "play", title: "เขย่าเลือก", description: "เขย่าแล้วแตะลูกที่ใช่", icon: Smartphone },
   { key: "reward", title: "เปิดรางวัล", description: "ลุ้นรางวัลที่ได้", icon: Gift },
   { key: "wallet", title: "รับสิทธิ์", description: "ปลดล็อกผ่าน LINE", icon: HeartHandshake },
 ] as const;
 
 const BOARD_KEYS = BOARD_STEPS.map((item) => item.key) as readonly Step[];
 
-const CAPSULE_LIST: readonly CapsuleTone[] = CAPSULE_TONES;
+const CAPSULE_LIST: readonly CapsuleTone[] = [CAPSULE_TONES[2], CAPSULE_TONES[0], CAPSULE_TONES[4]];
 
 const CLUSTER_LAYOUT = [
-  { left: "8%", top: "62%" },
-  { left: "26%", top: "44%" },
-  { left: "44%", top: "28%" },
-  { left: "60%", top: "42%" },
-  { left: "36%", top: "54%" },
-  { left: "16%", top: "30%" },
-  { left: "54%", top: "60%" },
-  { left: "30%", top: "70%" },
+  { left: "16%", top: "46%" },
+  { left: "42%", top: "18%" },
+  { left: "66%", top: "46%" },
 ] as const;
 
 const PICK_LAYOUT = [
-  { left: "8%", top: "8%" },
-  { left: "44%", top: "4%" },
-  { left: "70%", top: "20%" },
-  { left: "12%", top: "36%" },
-  { left: "44%", top: "32%" },
-  { left: "70%", top: "52%" },
-  { left: "26%", top: "60%" },
-  { left: "56%", top: "70%" },
+  { left: "14%", top: "36%" },
+  { left: "42%", top: "18%" },
+  { left: "68%", top: "36%" },
 ] as const;
 
 const STEP_COPY: Record<Exclude<Step, "play">, { eyebrow: string; title: string; description: string }> = {
   landing: { eyebrow: "Lucky Draw", title: "เขย่าบอล ลุ้นโชค", description: "เขย่ามือถือแล้วแตะ 1 ลูกเพื่อรับรางวัล" },
   reward: { eyebrow: "Your Reward", title: "เปิดรางวัล", description: "" },
   gate: { eyebrow: "LINE Unlock", title: "เพิ่มเพื่อนรับสิทธิ์", description: "ปลดล็อกคูปองผ่าน LINE OA" },
-  wallet: { eyebrow: "Coupon Wallet", title: "สิทธิ์พร้อมใช้", description: "โชว์โค้ดนี้ให้พนักงานที่หน้าร้าน" },
-  success: { eyebrow: "Completed", title: "เรียบร้อยแล้ว", description: "เก็บโค้ดนี้ไว้ใช้ที่ร้านได้เลย" },
+  wallet: { eyebrow: "Coupon Wallet", title: "สิทธิ์พร้อมใช้", description: STAFF_PROMPT },
+  success: { eyebrow: "Completed", title: "เรียบร้อยแล้ว", description: STAFF_PROMPT },
 };
 
 function PrimaryButton({ children, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
@@ -113,11 +107,14 @@ function SecondaryButton({ children, className = "", ...props }: React.ButtonHTM
 }
 
 function StoryboardHeader({ current }: { current: Step }) {
-  const activeIndex = Math.max(0, BOARD_KEYS.indexOf(current));
+  const rawIndex = BOARD_KEYS.indexOf(current);
+  const activeIndex = Math.max(0, rawIndex);
+  const nextStep = BOARD_STEPS[activeIndex + 1];
+  const nextLabel = nextStep ? `ขั้นตอนถัดไป: ${nextStep.title}` : "ขั้นตอนถัดไป: เสร็จแล้ว";
   return (
     <section className="rounded-[1.8rem] border border-[#D4AF7A]/30 bg-[#0A4632]/70 p-3 backdrop-blur-md shadow-[0_16px_40px_rgba(3,38,28,0.45)]">
       <div className="flex items-center justify-between px-1 pb-2">
-        <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#C8C0A8]">Flow</div>
+        <div className="text-[10px] font-bold tracking-[0.2em] text-[#C8C0A8]">ขั้นตอน</div>
         <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#E8C994]">
           {`${activeIndex + 1}/${BOARD_STEPS.length}`}
         </div>
@@ -131,15 +128,15 @@ function StoryboardHeader({ current }: { current: Step }) {
               <div
                 className={`flex h-11 w-11 items-center justify-center rounded-2xl transition ${
                   isActive
-                    ? "bg-[linear-gradient(180deg,#E8C994,#D4AF7A)] text-[#1A2520] shadow-[0_10px_20px_rgba(212,175,122,0.35)]"
+                    ? "border border-[#F8E4B6] bg-[linear-gradient(180deg,#F7DCA9,#D4AF7A)] text-[#0A2D21] shadow-[0_12px_28px_rgba(212,175,122,0.45)]"
                     : isDone
-                      ? "bg-[#D4AF7A]/20 text-[#E8C994]"
-                      : "bg-[#F5EFE0]/5 text-[#C8C0A8]/60"
+                      ? "border border-[#D4AF7A]/20 bg-[#D4AF7A]/12 text-[#E8C994]/75"
+                      : "border border-[#F5EFE0]/5 bg-[#F5EFE0]/[0.03] text-[#C8C0A8]/40"
                 }`}
               >
                 <Icon size={18} />
               </div>
-              <div className={`mt-1 text-[10px] font-bold leading-tight ${isActive ? "text-[#F5EFE0]" : "text-[#C8C0A8]"}`}>{title}</div>
+              <div className={`mt-1 text-[10px] font-bold leading-tight ${isActive ? "text-[#FFF8E8]" : isDone ? "text-[#C8C0A8]/75" : "text-[#C8C0A8]/50"}`}>{title}</div>
             </div>
           );
         })}
@@ -152,6 +149,7 @@ function StoryboardHeader({ current }: { current: Step }) {
           />
         ))}
       </div>
+      <div className="mt-2 px-1 text-[10px] font-medium text-[#C8C0A8]">{nextLabel}</div>
     </section>
   );
 }
@@ -192,7 +190,21 @@ function rewardAmount(title: string): number | null {
   return m ? Number(m[0]) : null;
 }
 
-function RewardTicketCard({ reward, label }: { reward: CampaignReward; label: string }) {
+function RewardTicketCard({
+  reward,
+  label,
+  copied,
+  onCopyCode,
+  onShowForStaff,
+  staffMode,
+}: {
+  reward: CampaignReward;
+  label: string;
+  copied: boolean;
+  onCopyCode: () => void;
+  onShowForStaff: () => void;
+  staffMode: boolean;
+}) {
   return (
     <div className="rounded-[1.8rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,#0F5A3D_0%,#063A2A_100%)] p-5 text-[#F5EFE0] shadow-[0_24px_48px_rgba(3,18,12,0.6)]">
       <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-[#E8C994]">{label}</div>
@@ -203,7 +215,33 @@ function RewardTicketCard({ reward, label }: { reward: CampaignReward; label: st
         </div>
         <div className="rounded-2xl border border-[#D4AF7A]/30 bg-[#063A2A] p-3 text-[#E8C994]"><Ticket size={22} /></div>
       </div>
-      <div className="mt-4 rounded-2xl border border-[#D4AF7A]/30 bg-[#03261C] px-4 py-3 text-center font-mono text-base font-bold tracking-[0.18em] text-[#F5EFE0]">{reward.couponCode}</div>
+      <div
+        className={`mt-4 rounded-2xl border px-4 text-center font-mono font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] transition ${
+          staffMode
+            ? "border-[#E8C994] bg-[#FFF9EE] py-5 text-3xl tracking-[0.28em] text-[#1A2520]"
+            : "border-[#D4AF7A]/45 bg-[#F5EFE0] py-4 text-2xl tracking-[0.24em] text-[#163128]"
+        }`}
+      >
+        {reward.couponCode}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onCopyCode}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D4AF7A]/40 bg-[#03261C] px-3 py-2.5 text-sm font-bold text-[#F5EFE0] transition hover:bg-[#0A4632]"
+        >
+          <Copy size={16} />
+          {copied ? "คัดลอกแล้ว" : "คัดลอกรหัส"}
+        </button>
+        <button
+          type="button"
+          onClick={onShowForStaff}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D4AF7A]/40 bg-[#03261C] px-3 py-2.5 text-sm font-bold text-[#F5EFE0] transition hover:bg-[#0A4632]"
+        >
+          <Eye size={16} />
+          แสดงให้พนักงาน
+        </button>
+      </div>
       {reward.expiresAt ? <div className="mt-3 text-xs text-[#C8C0A8]">ใช้ได้ถึง {formatThaiDate(reward.expiresAt)}</div> : null}
     </div>
   );
@@ -226,6 +264,8 @@ export default function PharmacyPlusPage() {
   const [gateChecking, setGateChecking] = useState(false);
   const [gateAttempts, setGateAttempts] = useState(0);
   const [gateMessage, setGateMessage] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [staffMode, setStaffMode] = useState(false);
   const sfxMuted = useSyncExternalStore(subscribeSfxMute, getSfxMutedSnapshot, () => false);
   const source = useMemo(() => createSourceFromParams(params), [params]);
   const lastStepEventRef = useRef<string | null>(null);
@@ -419,7 +459,27 @@ export default function PharmacyPlusPage() {
 
   const handleFinishWallet = () => {
     if (!reward) return;
+    setStaffMode(false);
+    setCopiedCode(null);
     setStep("success");
+  };
+
+  const handleCopyCode = async () => {
+    if (!reward?.couponCode) return;
+    try {
+      await navigator.clipboard.writeText(reward.couponCode);
+      setCopiedCode(reward.couponCode);
+      safeVibrate([14, 24, 14]);
+      void playTap();
+    } catch {
+      setCopiedCode(null);
+    }
+  };
+
+  const handleShowForStaff = () => {
+    setStaffMode(true);
+    safeVibrate(18);
+    void playTap();
   };
 
   const boardStep: Step = step === "landing" ? "play" : step === "gate" || step === "success" ? "wallet" : step;
@@ -467,23 +527,42 @@ export default function PharmacyPlusPage() {
                         </div>
                         <div className="font-pp-display mt-4 text-2xl font-semibold tracking-tight text-[#F5EFE0]">เพิ่มเพื่อน LINE OA</div>
                         <div className="mt-2 text-sm leading-6 text-[#C8C0A8]">ปลดล็อกสิทธิ์รับคูปองและเก็บไว้ใน LINE ของคุณ</div>
+                        <ul className="mt-4 space-y-2 rounded-[1.2rem] border border-[#D4AF7A]/25 bg-[#03261C] p-4 text-left text-sm text-[#C8C0A8]">
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[#E8C994]" />
+                            รับคูปองได้ทันทีหลังปลดล็อก
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[#E8C994]" />
+                            ใช้งานสิทธิ์ได้ที่ร้านโดยแสดงโค้ดให้พนักงาน
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[#E8C994]" />
+                            ไม่เสียค่าใช้จ่ายในการเข้าร่วม
+                          </li>
+                        </ul>
                         <div className="mt-4 rounded-[1.4rem] border border-[#D4AF7A]/25 bg-[#03261C] px-4 py-3 text-sm text-[#C8C0A8]">
                           สถานะปัจจุบัน: <span className="font-bold text-[#F5EFE0]">{isFriend ? "เพิ่มเพื่อนแล้ว" : "ยังไม่ได้เพิ่มเพื่อน"}</span>
                         </div>
-                        {!isFriend ? (
-                          <a
-                            href={config?.addFriendUrl ?? "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => void logEvent("add_friend_click", { qrId: source.qrId ?? null }, "gate")}
-                            className="mt-4 inline-flex w-full items-center justify-center rounded-[1.35rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-3.5 text-base font-bold text-[#1A2520] shadow-[0_16px_30px_rgba(212,175,122,0.4)]"
-                          >
-                            เพิ่มเพื่อน
-                          </a>
+                        <a
+                          href={config?.addFriendUrl ?? "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => void logEvent("add_friend_click", { qrId: source.qrId ?? null }, "gate")}
+                          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[1.35rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-3.5 text-base font-bold text-[#1A2520] shadow-[0_16px_30px_rgba(212,175,122,0.4)]"
+                        >
+                          <HeartHandshake size={18} />
+                          เพิ่มเพื่อน LINE OA
+                        </a>
+                        <SecondaryButton className="mt-3" onClick={handleGateCheck} disabled={gateChecking || claiming}>
+                          {gateChecking ? "กำลังตรวจสอบสถานะ..." : isFriend ? "ตรวจสอบสถานะแล้ว ไปต่อ" : "ตรวจสอบสถานะการเพิ่มเพื่อน"}
+                        </SecondaryButton>
+                        {gateChecking ? (
+                          <div className="mt-3 flex items-center gap-2 rounded-[1.2rem] border border-[#D4AF7A]/30 bg-[#D4AF7A]/10 px-4 py-3 text-left text-sm text-[#F5EFE0]">
+                            <LoaderCircle size={16} className="shrink-0 animate-spin text-[#E8C994]" />
+                            กำลังเช็กสถานะการเพิ่มเพื่อน กรุณารอสักครู่...
+                          </div>
                         ) : null}
-                        <PrimaryButton className="mt-3" onClick={handleGateCheck} disabled={gateChecking || claiming}>
-                          {gateChecking ? "กำลังตรวจสอบ..." : isFriend ? "ไปต่อ" : "ฉันเพิ่มเพื่อนแล้ว"}
-                        </PrimaryButton>
                         {gateMessage ? (
                           <div className="mt-3 rounded-[1.2rem] border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-left text-sm text-amber-100">
                             {gateMessage}
@@ -503,13 +582,20 @@ export default function PharmacyPlusPage() {
 
                   {step === "wallet" && reward && (
                     <div className="space-y-4">
-                      <RewardTicketCard reward={reward} label={reward.status === "redeemed" ? "Coupon Redeemed" : "Coupon Claimed"} />
+                      <RewardTicketCard
+                        reward={reward}
+                        label={reward.status === "redeemed" ? "Coupon Redeemed" : "Coupon Claimed"}
+                        copied={copiedCode === reward.couponCode}
+                        onCopyCode={() => void handleCopyCode()}
+                        onShowForStaff={handleShowForStaff}
+                        staffMode={staffMode}
+                      />
                       <div className="rounded-[1.4rem] border border-[#D4AF7A]/25 bg-[#0A4632]/60 px-4 py-4">
                         <div className="flex items-start gap-3">
                           <div className="rounded-2xl bg-[#D4AF7A]/15 p-2 text-[#E8C994]"><ShieldCheck size={18} /></div>
                           <div>
                             <div className="text-sm font-black text-[#F5EFE0]">วิธีใช้สิทธิ์</div>
-                            <div className="mt-1 text-sm leading-6 text-[#C8C0A8]">แสดงโค้ดนี้ให้พนักงานที่หน้าร้าน ลูกค้าไม่ต้องกด redeem เองในหน้านี้</div>
+                            <div className="mt-1 text-sm leading-6 text-[#C8C0A8]">{STAFF_PROMPT}</div>
                             {reward.expiresAt ? <div className="mt-2 text-xs text-[#C8C0A8]/80">ใช้ได้ถึง {formatThaiDate(reward.expiresAt)}</div> : null}
                           </div>
                         </div>
@@ -525,7 +611,7 @@ export default function PharmacyPlusPage() {
                           <CheckCircle2 size={30} />
                         </div>
                         <div className="font-pp-display mt-4 text-3xl font-semibold tracking-tight text-[#F5EFE0]">เรียบร้อย!</div>
-                        <p className="mt-2 text-sm leading-6 text-[#C8C0A8]">เก็บหน้านี้ไว้หรือแคปจอ แล้วแสดงโค้ดกับพนักงานเมื่อใช้สิทธิ์</p>
+                        <p className="mt-2 text-sm leading-6 text-[#C8C0A8]">{STAFF_PROMPT}</p>
                         <div className="mt-4 rounded-2xl border border-[#D4AF7A]/30 bg-[#03261C] px-4 py-3 font-mono text-sm font-bold tracking-[0.18em] text-[#F5EFE0]">
                           {reward.title} · {reward.couponCode}
                         </div>
@@ -711,6 +797,19 @@ function PlayStage({
   const holdStartRef = useRef<number | null>(null);
   const intensityTimerRef = useRef<number | null>(null);
 
+  const endHold = useCallback(() => {
+    if (intensityTimerRef.current) {
+      window.clearInterval(intensityTimerRef.current);
+      intensityTimerRef.current = null;
+    }
+    rumbleRef.current?.stop();
+    rumbleRef.current = null;
+    holdStartRef.current = null;
+    safeVibrate([12, 8, 24]);
+    // brief slow-mo before settle
+    window.setTimeout(() => onSettled(), 380);
+  }, [onSettled]);
+
   const startHold = useCallback(async () => {
     if (phase !== "idle") return;
     void unlockSfxFromUserGesture();
@@ -727,20 +826,7 @@ function PlayStage({
         endHold();
       }
     }, 80);
-  }, [phase, setPhase]);
-
-  const endHold = useCallback(() => {
-    if (intensityTimerRef.current) {
-      window.clearInterval(intensityTimerRef.current);
-      intensityTimerRef.current = null;
-    }
-    rumbleRef.current?.stop();
-    rumbleRef.current = null;
-    holdStartRef.current = null;
-    safeVibrate([12, 8, 24]);
-    // brief slow-mo before settle
-    window.setTimeout(() => onSettled(), 380);
-  }, [onSettled]);
+  }, [endHold, phase, setPhase]);
 
   const releaseHold = useCallback(() => {
     if (phase !== "shaking") return;
@@ -802,6 +888,7 @@ function PlayStage({
                   ? "pp-rise-rotate"
                   : "pp-dust-away"
                 : "";
+              const disabled = phase !== "settled" || drawing || (selectedCapsule !== null && !isSelected);
               return (
                 <motion.div
                   key={tone}
@@ -809,13 +896,14 @@ function PlayStage({
                   layoutId={`capsule-${tone}`}
                   transition={{ duration: phase === "shaking" ? 0.2 : 0.55, ease: [0.2, 0.8, 0.2, 1] }}
                   className={`absolute ${slowMo} ${stateClass}`}
-                  style={{ left: pos.left, top: pos.top, width: phase === "settled" ? "22%" : "20%" }}
+                  style={{ left: pos.left, top: pos.top, width: phase === "settled" ? (index === 1 ? "29%" : "22%") : (index === 1 ? "25%" : "20%") }}
                 >
                   <Capsule
                     tone={tone}
                     size={phase === "shaking" ? "md" : "lg"}
                     selected={isSelected}
                     dim={isOther && phase === "settled"}
+                    disabled={disabled}
                     onClick={phase === "settled" ? () => onPick(index) : undefined}
                     className={breatheClass}
                     style={{ position: "static" }}
@@ -846,7 +934,10 @@ function PlayStage({
             <span className="relative">{phase === "shaking" ? "ค้างไว้..." : "กดค้างเพื่อเขย่า"}</span>
           </button>
         ) : phase === "settled" ? (
-          <div className="text-center text-xs text-[#C8C0A8]">— แตะแคปซูลเพื่อเปิดรางวัล —</div>
+          <div className="space-y-1 text-center">
+            <div className="text-xs text-[#C8C0A8]">— แตะแคปซูลเพื่อเปิดรางวัล —</div>
+            <div className="text-[11px] font-semibold text-[#E8C994]">แตะเพื่อเลือก 1 ลูก</div>
+          </div>
         ) : (
           <div className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#D4AF7A]/40 bg-[#063A2A]/60 px-5 py-3 backdrop-blur">
             <LoaderCircle className="animate-spin text-[#E8C994]" size={16} />
@@ -946,6 +1037,18 @@ function LandingHero({
 }) {
   const [previewShaking, setPreviewShaking] = useState(false);
 
+  const heroCandidates = [
+    { key: "a", src: "/images/pharmacy-plus/hero-a.svg" },
+    { key: "b", src: "/images/pharmacy-plus/hero-b.svg" },
+    { key: "c", src: "/images/pharmacy-plus/hero-c.svg" },
+  ] as const;
+
+  const selectedHero = useMemo(() => {
+    if (typeof window === "undefined") return heroCandidates[0];
+    const requested = new URLSearchParams(window.location.search).get("hero");
+    return heroCandidates.find((item) => item.key === requested) ?? heroCandidates[0];
+  }, []);
+
   const triggerPreview = () => {
     if (previewShaking) return;
     void unlockSfxFromUserGesture();
@@ -959,61 +1062,37 @@ function LandingHero({
 
   return (
     <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-[2.4rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,#0F5A3D_0%,#063A2A_60%,#03261C_100%)] p-6 pb-7 text-[#F5EFE0] shadow-[0_30px_80px_rgba(3,18,12,0.55)]">
-        <div className="pp-noise-overlay" />
-        <div className="pp-vignette-gold pointer-events-none absolute inset-0" />
-        <div className="relative">
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF7A]/50 bg-[#03261C]/60 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.28em] text-[#E8C994] backdrop-blur">
+      <section className="relative overflow-hidden rounded-[2.4rem] border border-[#D4AF7A]/40 bg-[#063A2A] text-[#F5EFE0] shadow-[0_30px_80px_rgba(3,18,12,0.55)]">
+        <div className="relative h-[28rem]">
+          <Image
+            src={selectedHero.src}
+            alt="Pharmacy Plus Lucky Draw Hero"
+            fill
+            priority
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 28rem"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,38,28,0.08)_5%,rgba(3,38,28,0.58)_48%,rgba(3,38,28,0.9)_100%)]" />
+        </div>
+
+        <div className="relative space-y-4 px-6 pb-7 pt-5">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF7A]/50 bg-[#03261C]/65 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.28em] text-[#E8C994] backdrop-blur">
             <Sparkles size={12} /> Apothecary Draw
           </div>
-          <h1 className="font-pp-display mt-3 text-[3rem] font-semibold leading-[1.02] tracking-tight">
-            เขย่าโชค <span className="pp-shimmer-text font-semibold">ลุ้นรางวัล</span>
-          </h1>
+
           {configLoading ? (
-            <div className="mt-2 h-4 w-48 max-w-full animate-pulse rounded-full bg-[#F5EFE0]/15" aria-hidden />
+            <div className="h-4 w-48 max-w-full animate-pulse rounded-full bg-[#F5EFE0]/15" aria-hidden />
           ) : campaignName ? (
-            <p className="mt-2 text-sm font-semibold leading-snug text-[#E8C994]">{campaignName}</p>
+            <p className="text-sm font-semibold leading-snug text-[#E8C994]">{campaignName}</p>
           ) : null}
-          <p className="mt-2 text-sm leading-6 text-[#C8C0A8]">เขย่าครั้งเดียว · แตะ 1 ลูก · รับรางวัลทันที</p>
-          <div className="pp-gold-divider mt-4" />
+
+          <p className="font-pp-display text-2xl font-semibold leading-tight tracking-tight text-[#F5EFE0]">ลุ้นคูปองส่วนลดทันที</p>
 
           {liffReady && loggedIn && displayName ? (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#D4AF7A]/40 bg-[#03261C]/60 px-3 py-1.5 text-xs font-semibold text-[#F5EFE0] backdrop-blur">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF7A]/40 bg-[#03261C]/60 px-3 py-1.5 text-xs font-semibold text-[#F5EFE0] backdrop-blur">
               เล่นในชื่อ <span className="font-pp-display text-base font-semibold text-[#E8C994]">{displayName}</span>
             </div>
           ) : null}
-
-          {/* Capsule preview */}
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={triggerPreview}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); triggerPreview(); } }}
-            aria-label="ลองเขย่าแคปซูล"
-            className="relative mx-auto mt-6 block h-72 w-full cursor-pointer select-none"
-          >
-            <div className={`relative mx-auto h-full w-[16rem] ${previewShaking ? "pp-shake" : ""}`}>
-              <div className="absolute inset-x-2 top-2 h-16 rounded-t-[3.5rem] border-x border-t border-[#D4AF7A]/40 bg-[linear-gradient(180deg,rgba(245,239,224,0.18)_0%,rgba(245,239,224,0.04)_100%)]" />
-              <div className={`absolute inset-x-2 top-12 bottom-12 overflow-hidden rounded-[2.4rem] border border-[#D4AF7A]/40 bg-[linear-gradient(180deg,rgba(245,239,224,0.08)_0%,rgba(245,239,224,0.02)_100%)] ${previewShaking ? "pp-edge-glow-strong" : "pp-edge-glow"}`}>
-                <div className="pointer-events-none absolute inset-x-4 top-3 h-6 rounded-full bg-[#F5EFE0]/15 blur-[2px]" />
-                {CAPSULE_LIST.slice(0, 6).map((tone, index) => {
-                  const layout = CLUSTER_LAYOUT[index % CLUSTER_LAYOUT.length];
-                  return (
-                    <Capsule
-                      key={tone}
-                      tone={tone}
-                      size="sm"
-                      style={{ left: layout.left, top: layout.top }}
-                      className={previewShaking ? "" : index % 2 === 0 ? "pp-float" : "pp-bob"}
-                    />
-                  );
-                })}
-              </div>
-              <div className="absolute inset-x-6 bottom-0 flex h-12 items-center justify-center rounded-b-[1.6rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] text-xs font-black uppercase tracking-[0.32em] text-[#1A2520] shadow-[0_10px_20px_rgba(3,18,12,0.4),inset_0_2px_0_rgba(255,255,255,0.55)]">
-                Pharmacy+
-              </div>
-            </div>
-          </div>
 
           {configLoading ? (
             <ul className="mt-4 space-y-2" aria-hidden>
@@ -1047,16 +1126,16 @@ function LandingHero({
             <button
               type="button"
               onClick={onLogin}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.18em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4)]"
+              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.18em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4)]"
             >
               <LogIn size={20} /> เข้าใช้งานผ่าน LINE
             </button>
           ) : (
             <button
               type="button"
-              onClick={onStart}
+              onClick={() => { triggerPreview(); onStart(); }}
               disabled={startDisabled}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.22em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4),inset_0_-4px_0_rgba(0,0,0,0.18),inset_0_2px_0_rgba(255,255,255,0.55)] transition hover:brightness-105 disabled:opacity-60"
+              className={`mt-1 inline-flex w-full items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(180deg,#E8C994_0%,#D4AF7A_55%,#9C7A3F_100%)] px-5 py-4 text-base font-black uppercase tracking-[0.22em] text-[#1A2520] shadow-[0_18px_30px_rgba(212,175,122,0.4),inset_0_-4px_0_rgba(0,0,0,0.18),inset_0_2px_0_rgba(255,255,255,0.55)] transition hover:brightness-105 disabled:opacity-60 ${previewShaking ? "pp-shake" : ""}`}
             >
               {starting ? (
                 <>
